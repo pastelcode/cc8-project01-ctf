@@ -19,10 +19,7 @@ class _ServerNameScreenState extends ConsumerState<ServerNameScreen> {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
 
-    // Start the actual game server on an OS-assigned port.
     ref.read(serverProvider.notifier).start(name);
-
-    // Transition to the hosting lobby screen.
     ref.read(appModeProvider.notifier).startHosting(name);
   }
 
@@ -41,20 +38,21 @@ class _ServerNameScreenState extends ConsumerState<ServerNameScreen> {
           mainAxisSize: MainAxisSize.min,
           spacing: 16,
           children: [
-            Text(
+            const Text(
               'Host Game',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              maxLength: Constants.nameMaxLength,
-              textInputAction: TextInputAction.go,
-              onSubmitted: (_) => _submit(),
-              decoration: const InputDecoration(
-                hintText: 'Server name',
-                border: OutlineInputBorder(),
+            SizedBox(
+              width: 280,
+              child: FTextField(
+                control: FTextFieldControl.managed(controller: _controller),
+                label: const Text('Server Name'),
+                hint: 'My Server',
+                maxLength: Constants.nameMaxLength,
+                autofocus: true,
+                textInputAction: TextInputAction.go,
+                onSubmit: (_) => _submit(),
               ),
             ),
             const SizedBox(height: 8),

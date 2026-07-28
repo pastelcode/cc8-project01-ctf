@@ -59,55 +59,84 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Manual connect dialog
+  // Manual connect
   // ---------------------------------------------------------------------------
 
-  void _showManualConnectDialog() {
+  void _showManualConnect() {
     final ipController = TextEditingController();
     final portController = TextEditingController(text: '8889');
 
     showDialog<void>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Manual Connect'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FTextField(
-                control: FTextFieldControl.managed(controller: ipController),
-                label: const Text('Server IP'),
-                hint: '192.168.1.100',
-              ),
-              const SizedBox(height: 12),
-              FTextField(
-                control: FTextFieldControl.managed(controller: portController),
-                label: const Text('TCP Port'),
-                hint: '8889',
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
+        return Center(
+          child: Container(
+            width: 320,
+            margin: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E2E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
-            FButton(
-              variant: .primary,
-              onPress: () {
-                final ip = ipController.text.trim();
-                final portStr = portController.text.trim();
-                if (ip.isEmpty || portStr.isEmpty) return;
-                final port = int.tryParse(portStr);
-                if (port == null || port < 1 || port > 65535) return;
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Manual Connect',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FTextField(
+                  control: FTextFieldControl.managed(controller: ipController),
+                  label: const Text('Server IP'),
+                  hint: '192.168.1.100',
+                ),
+                const SizedBox(height: 12),
+                FTextField(
+                  control: FTextFieldControl.managed(
+                    controller: portController,
+                  ),
+                  label: const Text('TCP Port'),
+                  hint: '8889',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  spacing: 8,
+                  children: [
+                    FButton(
+                      variant: FButtonVariant.ghost,
+                      onPress: () => Navigator.of(ctx).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    FButton(
+                      variant: FButtonVariant.primary,
+                      onPress: () {
+                        final ip = ipController.text.trim();
+                        final portStr = portController.text.trim();
+                        if (ip.isEmpty || portStr.isEmpty) return;
+                        final port = int.tryParse(portStr);
+                        if (port == null || port < 1 || port > 65535) return;
 
-                Navigator.of(ctx).pop();
-                ref.read(appModeProvider.notifier).showNameEntry(ip, port);
-              },
-              child: const Text('Connect'),
+                        Navigator.of(ctx).pop();
+                        ref
+                            .read(appModeProvider.notifier)
+                            .showNameEntry(ip, port);
+                      },
+                      child: const Text('Connect'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -121,33 +150,49 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ---- Header ----
+        // Header
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
           child: Row(
             children: [
               FButton(
-                variant: .ghost,
+                variant: FButtonVariant.ghost,
                 onPress: () => ref.read(appModeProvider.notifier).backToMenu(),
                 child: const Text('← Back'),
               ),
               const Spacer(),
-              Text('Join Game', style: Theme.of(context).textTheme.titleLarge),
+              const Text(
+                'Join Game',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
               const Spacer(),
               FButton(
-                variant: .ghost,
+                variant: FButtonVariant.ghost,
                 onPress: _scanning ? null : _startScanning,
                 child: const Text('Refresh'),
               ),
             ],
           ),
         ),
-        // ---- Scanning indicator ----
-        if (_scanning) const LinearProgressIndicator(),
-        // ---- Content ----
+        // Scanning indicator
+        if (_scanning)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: SizedBox(height: 3, child: LinearProgressIndicator()),
+          ),
+        // Content
         Expanded(
           child: _servers.isEmpty && !_scanning
-              ? const Center(child: Text('No servers found'))
+              ? const Center(
+                  child: Text(
+                    'No servers found',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -182,8 +227,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: inGame
-                                              ? Theme.of(context).disabledColor
-                                              : null,
+                                              ? Colors.white38
+                                              : Colors.white,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -192,8 +237,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                                         style: TextStyle(
                                           fontSize: 13,
                                           color: inGame
-                                              ? Theme.of(context).disabledColor
-                                              : null,
+                                              ? Colors.white38
+                                              : Colors.white70,
                                         ),
                                       ),
                                     ],
@@ -206,8 +251,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: inGame
-                                        ? Theme.of(context).disabledColor
-                                              .withValues(alpha: 0.15)
+                                        ? Colors.white.withValues(alpha: 0.08)
                                         : Colors.green.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -217,7 +261,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: inGame
-                                          ? Theme.of(context).disabledColor
+                                          ? Colors.white38
                                           : Colors.green,
                                     ),
                                   ),
@@ -231,14 +275,14 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                   },
                 ),
         ),
-        // ---- Manual connect button ----
+        // Manual connect button
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           child: SizedBox(
             width: double.infinity,
             child: FButton(
-              variant: .secondary,
-              onPress: _showManualConnectDialog,
+              variant: FButtonVariant.secondary,
+              onPress: _showManualConnect,
               child: const Text('Manual Connect'),
             ),
           ),

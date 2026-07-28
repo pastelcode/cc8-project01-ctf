@@ -1,6 +1,6 @@
 name: capture_the_flag
 description: "Capture The Flag game implementation for CC8 at Galileo University"
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0+1
 
 environment:
@@ -25,3 +25,7 @@ dev_dependencies:
   json_serializable: ^6.14.0
 flutter:
   uses-material-design: true
+  fonts:
+    - family: DepartureMono
+      fonts:
+        - asset: assets/fonts/DepartureMono-Regular.otf

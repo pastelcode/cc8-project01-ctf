@@ -57,15 +57,12 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       await connNotifier.connect(widget.ip!, widget.port!);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Connection failed: $e')));
+        showErrorToast(context, 'Connection failed: $e');
         ref.read(appModeProvider.notifier).backToMenu();
       }
       return;
     }
 
-    // Subscribe to server messages → game state provider.
     _msgSub = connNotifier.messages.listen(
       (msg) {
         ref.read(gameStateProvider.notifier).handleMessage(msg);
@@ -75,14 +72,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       },
       onError: (Object error) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Connection error: $error')));
+          showErrorToast(context, 'Connection error: $error');
         }
       },
     );
 
-    // Small delay so the subscription is active before the server responds.
     await Future.delayed(const Duration(milliseconds: 100));
     connNotifier.send(
       ClientMessage.join(v: 1, name: widget.playerName ?? 'Player'),
@@ -95,14 +89,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       await connNotifier.connect('localhost', port);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect to own server: $e')),
-        );
+        showErrorToast(context, 'Failed to connect to own server: $e');
       }
       return;
     }
 
-    // Subscribe to server messages → game state provider.
     _msgSub = connNotifier.messages.listen((msg) {
       ref.read(gameStateProvider.notifier).handleMessage(msg);
       if (msg is ErrorMsg && mounted) {
@@ -129,7 +120,6 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     _transitioning = true;
     final playerId = gameState.playerId ?? (_isHost ? 'host' : 'unknown');
 
-    // Defer so we don't mutate providers during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref
@@ -145,8 +135,6 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   @override
   void dispose() {
     _msgSub?.cancel();
-    // Only disconnect if the user is navigating away (not transitioning to
-    // the game screen, which needs the connection to stay alive).
     if (!_transitioning) {
       ref.read(connectionProvider.notifier).disconnect();
       if (_isHost) {
@@ -165,7 +153,6 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     final gameState = ref.watch(gameStateProvider);
     final serverHostState = _isHost ? ref.watch(serverProvider) : null;
 
-    // Auto-connect the host client when the server is ready.
     if (_isHost &&
         !_hostConnected &&
         serverHostState != null &&
@@ -179,10 +166,8 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       }
     }
 
-    // Transition to game screen when phase changes to playing.
     _maybeTransitionToGame(gameState);
 
-    // Player list: server state for host, game state for joiner.
     final players = _isHost
         ? (serverHostState?.gameState?.lobbyPlayers ?? const [])
         : gameState.lobbyPlayers;
@@ -201,16 +186,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
-            // Show connection info for the joiner.
             if (!_isHost && widget.ip != null && widget.port != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
                 child: Text(
                   'Players on this server',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 14, color: Colors.white54),
                 ),
               ),
             if (_isHost && players.isEmpty)
@@ -218,7 +203,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 child: Center(
                   child: Text(
                     'Waiting for players to join...',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: Colors.white54),
                   ),
                 ),
               )
@@ -229,42 +214,68 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   itemBuilder: (_, i) {
                     final player = players[i];
                     final isMe = player.id == gameState.playerId;
-                    return ListTile(
-                      leading: const Icon(Icons.person),
-                      title: Text(player.name),
-                      trailing: isMe
-                          ? const Text(
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            FLucideIcons.user,
+                            size: 20,
+                            color: Colors.white54,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              player.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          if (isMe)
+                            const Text(
                               '(You)',
-                              style: TextStyle(color: Colors.grey),
-                            )
-                          : null,
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 14,
+                              ),
+                            ),
+                        ],
+                      ),
                     );
                   },
                 ),
               ),
 
-            // Host connection status (show port info).
             if (_isHost && serverHostState != null && serverHostState.isRunning)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   'Port: ${serverHostState.server?.port ?? '—'}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: const TextStyle(fontSize: 12, color: Colors.white30),
                 ),
               ),
           ],
         ),
 
-        // Countdown overlay.
+        // Countdown overlay
         if (phase == GamePhase.countdown)
           Center(
             child: Text(
               '${gameState.countdownSeconds}',
-              style: const TextStyle(fontSize: 96, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 96,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
 
-        // Start button (host only, lobby phase, >= minPlayers).
+        // Start button (host only)
         if (_isHost &&
             phase == GamePhase.lobby &&
             players.length >= Constants.minPlayers)
