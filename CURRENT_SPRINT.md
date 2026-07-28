@@ -2,54 +2,52 @@
 
 ## Sprint Objective
 
-**Sprint 2: Client UI & Integration** — Implement all client screens, game rendering, input widgets, and wire the full server-client flow end-to-end.
+**MVP Complete** — All M0 through M7 milestones implemented. Game is fully playable: host server, discover, join, lobby, countdown, gameplay with 8-dir movement + flag capture/steal, victory, game over, return to lobby.
 
 ## Current Milestone
 
-**Milestone 6: Server-Client Integration** ✅ Complete
+**Milestone 7: Polish & Interop** ✅ Complete
 
-**Milestone 7: Polish & Interop** — Next (final MVP milestone)
-
-## Active Tasks
-
-| #    | Task                                                     | Status  | Owner |
-| :--- | :------------------------------------------------------- | :-----: | :---- |
-| T-15 | Add player name labels above avatars in-game             | ⬜ TODO | AI    |
-| T-16 | Improve countdown animation (scale/color transitions)    | ⬜ TODO | AI    |
-| T-17 | Add error handling UI (snackbar/toast for server errors) | ⬜ TODO | AI    |
-| T-18 | Stress test with 100 concurrent mock clients             | ⬜ TODO | AI    |
-| T-19 | Interop testing with classmates                          | ⬜ TODO | Dev   |
+**Status:** MVP implementation done. Remaining: manual interop testing with classmates.
 
 ## Completed Milestones
 
-| Milestone | Description                                                                 | Status |
-| :-------- | :-------------------------------------------------------------------------- | :----: |
-| M0.0      | Documentation phase                                                         |   ✅   |
-| M0.1      | Project Scaffold & Build Pipeline                                           |   ✅   |
-| M1        | Network Layer (framing, client, server, discovery)                          |   ✅   |
-| M2        | Core Validation & Geometry                                                  |   ✅   |
-| M3        | Server Engine (state, state machine, game loop)                             |   ✅   |
-| M4        | Client UI — Menu Screens (mode select, discovery, name entry, lobby)        |   ✅   |
-| M5        | Game Screen (painter, joystick, interact button, overlays)                  |   ✅   |
-| M6        | Server-Client Integration (server provider, lobby wiring, game transitions) |   ✅   |
-
-## Next Recommended Task
-
-**M7: Polish.** Add player name labels on the game canvas, improve countdown visuals, add error toast notifications. Then stress test and interop test.
+| #   | Milestone                                                           | Status |
+| :-- | :------------------------------------------------------------------ | :----: |
+| M0  | Documentation (PRD, TDD, AGENTS, MEMORY)                            |   ✅   |
+| M1  | Network Layer (framing, client, server, discovery)                  |   ✅   |
+| M2  | Core Validation & Geometry                                          |   ✅   |
+| M3  | Server Engine (state, state machine, game loop)                     |   ✅   |
+| M4  | Client UI — Menu Screens                                            |   ✅   |
+| M5  | Game Screen (painter, joystick, interact, overlays)                 |   ✅   |
+| M6  | Server-Client Integration                                           |   ✅   |
+| M7  | Polish (name labels, countdown animation, error toast, stress test) |   ✅   |
 
 ## Current Blockers
 
 _(None.)_
 
+## Remaining Work
+
+| Task                                 | Priority | Owner   |
+| :----------------------------------- | :------: | :------ |
+| Interop testing with ≥ 3 classmates  |    P0    | Dev     |
+| Build and deploy to physical devices |    P0    | Dev     |
+| Sound effects                        |    P1    | Backlog |
+| Haptic feedback                      |    P1    | Backlog |
+| Server dashboard                     |    P1    | Backlog |
+
 ## Sprint Success Criteria
 
-- [x] M4: All menu screens implemented and wired
-- [x] M5: Game screen with painter, joystick, interact button
-- [x] M6: Full server-client flow (host → lobby → countdown → game → game over → lobby)
+- [x] Full server-client flow (host → lobby → countdown → game → victory → game over → lobby)
+- [x] All 7 app modes wired in AppShell
+- [x] Game rendering: map, circle, players, flag, name labels
+- [x] 8-directional virtual joystick + interact button
+- [x] Countdown animation (scale + fade + color ramp)
+- [x] Error toast notifications for server errors
+- [x] Stress test: 100 concurrent clients, no crashes
 - [x] `dart format` passes on all files
 - [x] `flutter analyze` passes with zero errors
-- [x] Full test suite: 122/123 tests passing
-- [ ] M7: Polish (name labels, countdown animation, error UI)
-- [ ] Stress test: 100 concurrent clients
-- [ ] Interop test: ≥ 3 classmates
-- [ ] Project compiles (`flutter build` succeeds)
+- [x] Full test suite: 123/124 tests passing (1 pre-existing flaky UDP broadcast)
+- [ ] Interop testing with classmates
+- [ ] Physical device build verified

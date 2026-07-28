@@ -46,12 +46,27 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     super.dispose();
   }
 
+  Color _countdownColor(int seconds) => switch (seconds) {
+    5 => Colors.white,
+    4 => const Color(0xFFFFEB3B), // yellow
+    3 => const Color(0xFFFF9800), // orange
+    2 => const Color(0xFFF44336), // red
+    1 => const Color(0xFFFF1744), // bright red
+    _ => Colors.white,
+  };
+
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameStateProvider);
     final appMode = ref.watch(appModeProvider);
     final isSpectator = appMode is InGame && appMode.isSpectator;
     final phase = gameState.phase;
+
+    // Build a playerId → name map from lobby data.
+    final playerNames = <String, String>{};
+    for (final lp in gameState.lobbyPlayers) {
+      playerNames[lp.id] = lp.name;
+    }
 
     return Stack(
       children: [
@@ -62,6 +77,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               painter: GamePainter(
                 state: gameState,
                 localPlayerId: gameState.playerId,
+                playerNames: playerNames,
               ),
             ),
           ),
@@ -82,16 +98,38 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           ),
         ],
 
-        // Countdown overlay — centered large number
+        // Countdown overlay — animated scale+fade with color ramp
         if (phase == GamePhase.countdown)
           Center(
-            child: Text(
-              '${gameState.countdownSeconds}',
-              style: const TextStyle(
-                fontSize: 96,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(gameState.countdownSeconds),
+              tween: Tween(begin: 0.5, end: 1.0),
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutBack,
+              builder: (context, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: Opacity(
+                    opacity: scale.clamp(0.0, 1.0),
+                    child: Text(
+                      '${gameState.countdownSeconds}',
+                      style: TextStyle(
+                        fontSize: 96,
+                        fontWeight: FontWeight.bold,
+                        color: _countdownColor(gameState.countdownSeconds),
+                        shadows: [
+                          Shadow(
+                            color: _countdownColor(
+                              gameState.countdownSeconds,
+                            ).withValues(alpha: 0.5),
+                            blurRadius: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 

@@ -10,6 +10,7 @@ import '../providers/app_mode_provider.dart';
 import '../providers/connection_provider.dart';
 import '../providers/game_state_provider.dart';
 import '../providers/server_provider.dart';
+import '../widgets/error_toast.dart';
 
 class LobbyScreen extends ConsumerStatefulWidget {
   final bool isHost;
@@ -68,6 +69,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     _msgSub = connNotifier.messages.listen(
       (msg) {
         ref.read(gameStateProvider.notifier).handleMessage(msg);
+        if (msg is ErrorMsg && mounted) {
+          showErrorToast(context, msg.reason);
+        }
       },
       onError: (Object error) {
         if (mounted) {
@@ -101,6 +105,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     // Subscribe to server messages → game state provider.
     _msgSub = connNotifier.messages.listen((msg) {
       ref.read(gameStateProvider.notifier).handleMessage(msg);
+      if (msg is ErrorMsg && mounted) {
+        showErrorToast(context, msg.reason);
+      }
     });
 
     await Future.delayed(const Duration(milliseconds: 100));

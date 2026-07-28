@@ -7,8 +7,9 @@ import '../providers/game_state_provider.dart';
 class GamePainter extends CustomPainter {
   final GameWorld state;
   final String? localPlayerId; // to highlight the local player
+  final Map<String, String>? playerNames;
 
-  GamePainter({required this.state, this.localPlayerId});
+  GamePainter({required this.state, this.localPlayerId, this.playerNames});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -60,6 +61,7 @@ class GamePainter extends CustomPainter {
     for (final player in players) {
       final isLocal = player.id == localPlayerId;
       _drawPlayerBody(canvas, player, isLocal);
+      _drawPlayerName(canvas, player);
     }
   }
 
@@ -98,7 +100,45 @@ class GamePainter extends CustomPainter {
     canvas.drawPath(path, Paint()..color = const Color(0xFFFF4444));
   }
 
+  void _drawPlayerName(Canvas canvas, GamePlayer player) {
+    final name = playerNames?[player.id];
+    if (name == null) return;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: name,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final x = player.x - textPainter.width / 2;
+    final y = player.y - c.Constants.playerRadius - textPainter.height - 4;
+
+    // Draw a subtle background for readability
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          x - 3,
+          y - 1,
+          textPainter.width + 6,
+          textPainter.height + 2,
+        ),
+        const Radius.circular(4),
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.5),
+    );
+
+    textPainter.paint(canvas, Offset(x, y));
+  }
+
   @override
   bool shouldRepaint(covariant GamePainter oldDelegate) =>
-      state != oldDelegate.state || localPlayerId != oldDelegate.localPlayerId;
+      state != oldDelegate.state ||
+      localPlayerId != oldDelegate.localPlayerId ||
+      playerNames != oldDelegate.playerNames;
 }
