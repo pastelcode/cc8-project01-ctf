@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'providers/app_mode_provider.dart';
 import 'screens/discovery_screen.dart';
+import 'screens/game_screen.dart';
 import 'screens/lobby_screen.dart';
 import 'screens/mode_select_screen.dart';
 import 'screens/name_entry_screen.dart';
@@ -30,11 +31,7 @@ class AppShell extends ConsumerWidget {
           port: port,
           playerName: playerName,
         ),
-        InGame(:final playerId, :final isSpectator) => Center(
-          child: Text(
-            'In game: $playerId (${isSpectator ? "spectator" : "player"}) — TODO',
-          ),
-        ),
+        InGame() => const GameScreen(),
       },
     );
   }
