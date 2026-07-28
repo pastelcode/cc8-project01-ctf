@@ -1,0 +1,249 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forui/forui.dart';
+
+import '../../core/messages.dart';
+import '../../network/udp_discovery.dart';
+import '../providers/app_mode_provider.dart';
+
+class DiscoveryScreen extends ConsumerStatefulWidget {
+  const DiscoveryScreen({super.key});
+
+  @override
+  ConsumerState<DiscoveryScreen> createState() => _DiscoveryScreenState();
+}
+
+class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
+  final List<({String ip, ServerInfo info})> _servers = [];
+  StreamSubscription<({InternetAddress source, ServerInfo info})>? _listener;
+  bool _scanning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startScanning();
+  }
+
+  Future<void> _startScanning() async {
+    setState(() => _scanning = true);
+
+    await UdpDiscovery.sendDiscover();
+    _listener?.cancel();
+    _listener = UdpDiscovery.listenWithSource().listen((record) {
+      final ip = record.source.address;
+      final info = record.info;
+      setState(() {
+        final idx = _servers.indexWhere(
+          (s) => s.info.name == info.name && s.info.tcpPort == info.tcpPort,
+        );
+        if (idx >= 0) {
+          _servers[idx] = (ip: ip, info: info);
+        } else {
+          _servers.add((ip: ip, info: info));
+        }
+      });
+    });
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _scanning = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _listener?.cancel();
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Manual connect dialog
+  // ---------------------------------------------------------------------------
+
+  void _showManualConnectDialog() {
+    final ipController = TextEditingController();
+    final portController = TextEditingController(text: '8889');
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Manual Connect'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FTextField(
+                control: FTextFieldControl.managed(controller: ipController),
+                label: const Text('Server IP'),
+                hint: '192.168.1.100',
+              ),
+              const SizedBox(height: 12),
+              FTextField(
+                control: FTextFieldControl.managed(controller: portController),
+                label: const Text('TCP Port'),
+                hint: '8889',
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FButton(
+              variant: .primary,
+              onPress: () {
+                final ip = ipController.text.trim();
+                final portStr = portController.text.trim();
+                if (ip.isEmpty || portStr.isEmpty) return;
+                final port = int.tryParse(portStr);
+                if (port == null || port < 1 || port > 65535) return;
+
+                Navigator.of(ctx).pop();
+                ref.read(appModeProvider.notifier).showNameEntry(ip, port);
+              },
+              child: const Text('Connect'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // ---- Header ----
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Row(
+            children: [
+              FButton(
+                variant: .ghost,
+                onPress: () => ref.read(appModeProvider.notifier).backToMenu(),
+                child: const Text('← Back'),
+              ),
+              const Spacer(),
+              Text('Join Game', style: Theme.of(context).textTheme.titleLarge),
+              const Spacer(),
+              FButton(
+                variant: .ghost,
+                onPress: _scanning ? null : _startScanning,
+                child: const Text('Refresh'),
+              ),
+            ],
+          ),
+        ),
+        // ---- Scanning indicator ----
+        if (_scanning) const LinearProgressIndicator(),
+        // ---- Content ----
+        Expanded(
+          child: _servers.isEmpty && !_scanning
+              ? const Center(child: Text('No servers found'))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  itemCount: _servers.length,
+                  itemBuilder: (context, index) {
+                    final entry = _servers[index];
+                    final info = entry.info;
+                    final inGame = info.state == ServerState.playing;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: GestureDetector(
+                        onTap: inGame
+                            ? null
+                            : () => ref
+                                  .read(appModeProvider.notifier)
+                                  .showNameEntry(entry.ip, info.tcpPort),
+                        child: FCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        info.name,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: inGame
+                                              ? Theme.of(context).disabledColor
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Players: ${info.players}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: inGame
+                                              ? Theme.of(context).disabledColor
+                                              : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: inGame
+                                        ? Theme.of(context).disabledColor
+                                              .withValues(alpha: 0.15)
+                                        : Colors.green.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    inGame ? 'In Game' : 'Lobby',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: inGame
+                                          ? Theme.of(context).disabledColor
+                                          : Colors.green,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        // ---- Manual connect button ----
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: FButton(
+              variant: .secondary,
+              onPress: _showManualConnectDialog,
+              child: const Text('Manual Connect'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

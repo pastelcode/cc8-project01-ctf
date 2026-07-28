@@ -148,6 +148,62 @@ class UdpDiscovery {
   }
 
   // ---------------------------------------------------------------------------
+  // Client-side: listen for server_info with source address
+  // ---------------------------------------------------------------------------
+
+  /// Like [listen], but each event also includes the source [InternetAddress]
+  /// of the responding server.
+  static Stream<({InternetAddress source, ServerInfo info})>
+  listenWithSource() {
+    final controller =
+        StreamController<
+          ({InternetAddress source, ServerInfo info})
+        >.broadcast();
+    RawDatagramSocket? socket;
+    var cancelSubscription = false;
+
+    void start() {
+      if (socket != null) return;
+      RawDatagramSocket.bind(
+        InternetAddress.anyIPv4,
+        discoveryPort,
+        reuseAddress: true,
+        reusePort: Platform.isMacOS || Platform.isLinux,
+      ).then(
+        (s) {
+          if (cancelSubscription) {
+            s.close();
+            return;
+          }
+          socket = s;
+          s.listen(
+            _onReadWithSource(s, controller),
+            onError: (Object e, StackTrace st) {
+              if (!controller.isClosed) controller.addError(e, st);
+            },
+            onDone: () {
+              if (!controller.isClosed) controller.close();
+            },
+            cancelOnError: false,
+          );
+        },
+        onError: (Object e, StackTrace st) {
+          if (!controller.isClosed) controller.addError(e, st);
+        },
+      );
+    }
+
+    controller.onListen = start;
+    controller.onCancel = () {
+      cancelSubscription = true;
+      socket?.close();
+      socket = null;
+    };
+
+    return controller.stream;
+  }
+
+  // ---------------------------------------------------------------------------
   // Server-side: listen for discover
   // ---------------------------------------------------------------------------
 
@@ -228,6 +284,39 @@ class UdpDiscovery {
           final msg = UdpMessage.fromJson(canonical);
           if (msg is ServerInfo) {
             if (!controller.isClosed) controller.add(msg);
+          }
+        } catch (_) {
+          // Silently discard non-JSON datagrams (SPEC §1.3).
+        }
+      }
+    };
+  }
+
+  /// Returns a callback that parses incoming datagrams as [ServerInfo] and
+  /// includes the source [InternetAddress].
+  ///
+  /// Drains all available datagrams from the socket buffer on each `read`
+  /// event to avoid silently buffering messages that arrive between event
+  /// loop iterations.
+  static void Function(RawSocketEvent) _onReadWithSource(
+    RawDatagramSocket socket,
+    StreamController<({InternetAddress source, ServerInfo info})> controller,
+  ) {
+    return (RawSocketEvent event) {
+      if (event != RawSocketEvent.read) return;
+      for (Datagram? d = socket.receive(); d != null; d = socket.receive()) {
+        final datagram = d;
+        try {
+          final text = utf8.decode(datagram.data);
+          final json = jsonDecode(text) as Map<String, dynamic>;
+          if (json['type'] != 'server_info') continue;
+          if (json['v'] != 1) continue;
+          final canonical = canonicalizeDiscriminator(json);
+          final msg = UdpMessage.fromJson(canonical);
+          if (msg is ServerInfo) {
+            if (!controller.isClosed) {
+              controller.add((source: datagram.address, info: msg));
+            }
           }
         } catch (_) {
           // Silently discard non-JSON datagrams (SPEC §1.3).
