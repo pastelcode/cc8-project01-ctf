@@ -59,14 +59,24 @@ class AppModeNotifier extends Notifier<AppMode> {
   void enterGame(String playerId, {bool isSpectator = false}) =>
       state = InGame(playerId: playerId, isSpectator: isSpectator);
 
+  /// Returns to the lobby after a game round ends.
+  ///
+  /// If the current state is [InGame] and the player was hosting
+  /// (isSpectator), go back to [Hosting]; for joiners go back to
+  /// [Discovering]. In all other cases return to [ModeSelect].
   void backToLobby() {
-    state = switch (state) {
-      Hosting() || InGame() =>
-        state is Hosting
-            ? Hosting(serverName: (state as Hosting).serverName)
-            : const Discovering(),
-      _ => const ModeSelect(),
-    };
+    switch (state) {
+      case InGame(:final isSpectator):
+        if (isSpectator) {
+          state = const Hosting(serverName: '');
+        } else {
+          state = const ModeSelect();
+        }
+      case Hosting(:final serverName):
+        state = Hosting(serverName: serverName);
+      case _:
+        state = const ModeSelect();
+    }
   }
 
   void backToMenu() => state = const ModeSelect();

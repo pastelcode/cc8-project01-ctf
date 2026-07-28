@@ -8,21 +8,23 @@ import '../../core/constants.dart';
 import '../../core/messages.dart';
 import '../providers/app_mode_provider.dart';
 import '../providers/connection_provider.dart';
+import '../providers/game_state_provider.dart';
+import '../providers/server_provider.dart';
 
 class LobbyScreen extends ConsumerStatefulWidget {
+  final bool isHost;
+  final String serverName;
   final String? ip;
   final int? port;
   final String? playerName;
-  final bool isHost;
-  final String? serverName;
 
   const LobbyScreen({
     super.key,
+    this.isHost = false,
+    this.serverName = '',
     this.ip,
     this.port,
     this.playerName,
-    this.isHost = false,
-    this.serverName,
   });
 
   @override
@@ -30,11 +32,9 @@ class LobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
-  final List<LobbyPlayer> _players = [];
-  GamePhase _phase = GamePhase.lobby;
-  int _countdownSeconds = Constants.countdownSeconds;
-  String? _myPlayerId;
-  StreamSubscription<ServerMessage>? _sub;
+  StreamSubscription<ServerMessage>? _msgSub;
+  bool _hostConnected = false;
+  bool _transitioning = false;
 
   bool get _isHost => widget.isHost;
 
@@ -42,21 +42,33 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   void initState() {
     super.initState();
     if (!_isHost) {
-      _connectAsClient();
+      _connectAsJoiner();
     }
   }
 
-  Future<void> _connectAsClient() async {
-    final ip = widget.ip!;
-    final port = widget.port!;
-    final name = widget.playerName ?? 'Player';
+  // ---------------------------------------------------------------------------
+  // Connection
+  // ---------------------------------------------------------------------------
 
+  Future<void> _connectAsJoiner() async {
     final connNotifier = ref.read(connectionProvider.notifier);
-    await connNotifier.connect(ip, port);
+    try {
+      await connNotifier.connect(widget.ip!, widget.port!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Connection failed: $e')));
+        ref.read(appModeProvider.notifier).backToMenu();
+      }
+      return;
+    }
 
-    // Subscribe before sending to avoid missing any server message.
-    _sub = connNotifier.messages.listen(
-      _handleMessage,
+    // Subscribe to server messages → game state provider.
+    _msgSub = connNotifier.messages.listen(
+      (msg) {
+        ref.read(gameStateProvider.notifier).handleMessage(msg);
+      },
       onError: (Object error) {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -66,55 +78,110 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       },
     );
 
-    connNotifier.send(ClientMessage.join(v: 1, name: name));
+    // Small delay so the subscription is active before the server responds.
+    await Future.delayed(const Duration(milliseconds: 100));
+    connNotifier.send(
+      ClientMessage.join(v: 1, name: widget.playerName ?? 'Player'),
+    );
   }
 
-  void _handleMessage(ServerMessage msg) {
-    if (!mounted) return;
-
-    setState(() {
-      switch (msg) {
-        case Welcome(:final playerId):
-          _myPlayerId = playerId;
-          ref.read(connectionProvider.notifier).setPlayerId(playerId);
-        case Lobby(:final players):
-          _players
-            ..clear()
-            ..addAll(players);
-          _phase = GamePhase.lobby;
-          _countdownSeconds = Constants.countdownSeconds;
-        case Countdown(:final seconds):
-          _phase = GamePhase.countdown;
-          _countdownSeconds = seconds;
-        case Start():
-          _phase = GamePhase.playing;
-          ref
-              .read(appModeProvider.notifier)
-              .enterGame(_myPlayerId ?? 'unknown', isSpectator: _isHost);
-        case GameOver():
-          _phase = GamePhase.gameOver;
-        case ErrorMsg(:final reason):
-          if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Server error: $reason')));
-          }
-        default:
-          break; // State, etc. — ignored during lobby phase.
+  Future<void> _connectAsHost(int port) async {
+    final connNotifier = ref.read(connectionProvider.notifier);
+    try {
+      await connNotifier.connect('localhost', port);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to connect to own server: $e')),
+        );
       }
+      return;
+    }
+
+    // Subscribe to server messages → game state provider.
+    _msgSub = connNotifier.messages.listen((msg) {
+      ref.read(gameStateProvider.notifier).handleMessage(msg);
+    });
+
+    await Future.delayed(const Duration(milliseconds: 100));
+    connNotifier.send(ClientMessage.join(v: 1, name: 'Host'));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------------
+
+  void _startGame() {
+    ref.read(serverProvider.notifier).startCountdown();
+  }
+
+  void _maybeTransitionToGame(GameWorld gameState) {
+    if (_transitioning) return;
+    if (gameState.phase != GamePhase.playing) return;
+
+    _transitioning = true;
+    final playerId = gameState.playerId ?? (_isHost ? 'host' : 'unknown');
+
+    // Defer so we don't mutate providers during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(appModeProvider.notifier)
+          .enterGame(playerId, isSpectator: _isHost);
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   @override
   void dispose() {
-    _sub?.cancel();
-    ref.read(connectionProvider.notifier).disconnect();
+    _msgSub?.cancel();
+    // Only disconnect if the user is navigating away (not transitioning to
+    // the game screen, which needs the connection to stay alive).
+    if (!_transitioning) {
+      ref.read(connectionProvider.notifier).disconnect();
+      if (_isHost) {
+        ref.read(serverProvider.notifier).stop();
+      }
+    }
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    final title = _isHost ? (widget.serverName ?? 'Your Game') : 'Lobby';
+    final gameState = ref.watch(gameStateProvider);
+    final serverHostState = _isHost ? ref.watch(serverProvider) : null;
+
+    // Auto-connect the host client when the server is ready.
+    if (_isHost &&
+        !_hostConnected &&
+        serverHostState != null &&
+        serverHostState.isRunning) {
+      _hostConnected = true;
+      final port = serverHostState.server?.port;
+      if (port != null && port > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _connectAsHost(port);
+        });
+      }
+    }
+
+    // Transition to game screen when phase changes to playing.
+    _maybeTransitionToGame(gameState);
+
+    // Player list: server state for host, game state for joiner.
+    final players = _isHost
+        ? (serverHostState?.gameState?.lobbyPlayers ?? const [])
+        : gameState.lobbyPlayers;
+
+    final phase = gameState.phase;
+    final title = _isHost ? widget.serverName : 'Lobby';
 
     return Stack(
       children: [
@@ -123,27 +190,38 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                title,
+                title.isNotEmpty ? title : 'Lobby',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            if (_isHost && _players.isEmpty) ...[
-              const Spacer(),
-              const Text(
-                'Waiting for players to join...',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+            // Show connection info for the joiner.
+            if (!_isHost && widget.ip != null && widget.port != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Players on this server',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
               ),
-              const Spacer(),
-            ] else
+            if (_isHost && players.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Waiting for players to join...',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ),
+              )
+            else
               Expanded(
                 child: ListView.builder(
-                  itemCount: _players.length,
+                  itemCount: players.length,
                   itemBuilder: (_, i) {
-                    final player = _players[i];
-                    final isMe = player.id == _myPlayerId;
+                    final player = players[i];
+                    final isMe = player.id == gameState.playerId;
                     return ListTile(
                       leading: const Icon(Icons.person),
                       title: Text(player.name),
@@ -157,20 +235,32 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   },
                 ),
               ),
+
+            // Host connection status (show port info).
+            if (_isHost && serverHostState != null && serverHostState.isRunning)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Port: ${serverHostState.server?.port ?? '—'}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ),
           ],
         ),
-        // Countdown overlay
-        if (_phase == GamePhase.countdown)
+
+        // Countdown overlay.
+        if (phase == GamePhase.countdown)
           Center(
             child: Text(
-              '$_countdownSeconds',
+              '${gameState.countdownSeconds}',
               style: const TextStyle(fontSize: 96, fontWeight: FontWeight.bold),
             ),
           ),
-        // Start button (host only, in lobby phase, >= minPlayers)
+
+        // Start button (host only, lobby phase, >= minPlayers).
         if (_isHost &&
-            _phase == GamePhase.lobby &&
-            _players.length >= Constants.minPlayers)
+            phase == GamePhase.lobby &&
+            players.length >= Constants.minPlayers)
           Positioned(
             bottom: 24,
             left: 0,
@@ -184,9 +274,5 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           ),
       ],
     );
-  }
-
-  void _startGame() {
-    // Host triggers countdown — placeholder until server integration.
   }
 }

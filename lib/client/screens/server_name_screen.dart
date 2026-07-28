@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import '../providers/app_mode_provider.dart';
+import '../providers/server_provider.dart';
 import '../../core/constants.dart';
 
 class ServerNameScreen extends ConsumerStatefulWidget {
@@ -17,6 +18,11 @@ class _ServerNameScreenState extends ConsumerState<ServerNameScreen> {
   void _submit() {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
+
+    // Start the actual game server on an OS-assigned port.
+    ref.read(serverProvider.notifier).start(name);
+
+    // Transition to the hosting lobby screen.
     ref.read(appModeProvider.notifier).startHosting(name);
   }
 

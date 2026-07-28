@@ -20,8 +20,15 @@ class ServerStateMachine {
   /// Active game loop, non‑null only while the game is in [GamePhase.playing].
   ServerGameLoop? _gameLoop;
 
+  /// Public accessor so the host provider can reference the active loop.
+  ServerGameLoop? get gameLoop => _gameLoop;
+
   /// Countdown cancellation token.
   bool _countdownActive = false;
+
+  /// Callback set by the host provider, forwarded to [ServerGameLoop] so the
+  /// host can spectate its own server.
+  void Function()? onTick;
 
   final Random _random = Random();
 
@@ -274,6 +281,7 @@ class ServerStateMachine {
       state: state,
       server: server,
       onVictory: endGame,
+      onTick: onTick,
     );
     _gameLoop!.start();
   }

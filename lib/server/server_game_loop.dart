@@ -18,6 +18,11 @@ class ServerGameLoop {
   /// Called when the victory condition is met during a tick.
   final void Function(String winnerId) onVictory;
 
+  /// Called at the end of each tick, after the state broadcast.
+  /// Used by the host provider to sync state into the client-side
+  /// [gameStateProvider] so the host can spectate its own server.
+  void Function()? onTick;
+
   Timer? _tickTimer;
 
   /// Tick duration for 20 Hz simulation.
@@ -33,6 +38,7 @@ class ServerGameLoop {
     required this.state,
     required this.server,
     required this.onVictory,
+    this.onTick,
   });
 
   // ---------------------------------------------------------------------------
@@ -81,6 +87,9 @@ class ServerGameLoop {
 
     // 5. BROADCAST STATE.
     server.broadcastCoalescible(state.toStateMsg());
+
+    // 6. NOTIFY HOST (if any) about the new state.
+    onTick?.call();
   }
 
   // ---------------------------------------------------------------------------
