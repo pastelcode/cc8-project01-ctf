@@ -1,0 +1,43 @@
+[
+  {
+    "label": "Generate code",
+    "command": "fvm dart run build_runner build",
+    "args": ["--delete-conflicting-outputs"],
+  },
+  {
+    "label": "Debug",
+    "command": "fvm flutter run",
+    "args": [
+      "--pid-file",
+      "/tmp/ctf.pid",
+      // "--dart-define-from-file",
+      // "env.json",
+    ],
+  },
+  {
+    "label": "Hot reload (watch)",
+    "command": "watchexec",
+    "args": [
+      "-w",
+      "lib",
+      "-e",
+      "dart",
+      "--",
+      "kill",
+      "-USR1",
+      "$(cat /tmp/ctf.pid)",
+    ],
+  },
+  {
+    "label": "Build APK",
+    "command": "fvm flutter build apk --dart-define-from-file=env.json && open build/app/outputs/flutter-apk",
+  },
+  {
+    "label": "Build App Bundle",
+    "command": "fvm flutter build appbundle --dart-define-from-file=env.json && open build/app/outputs/bundle/release",
+  },
+  {
+    "label": "Build IPA",
+    "command": "fvm flutter build ipa --dart-define-from-file=env.json && open build/ios/ipa",
+  },
+]
