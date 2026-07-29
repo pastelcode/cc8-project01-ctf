@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import '../providers/app_mode_provider.dart';
 import '../providers/server_provider.dart';
+import '../widgets/error_toast.dart';
 import '../../core/constants.dart';
 
 class ServerNameScreen extends ConsumerStatefulWidget {
@@ -15,12 +18,18 @@ class ServerNameScreen extends ConsumerStatefulWidget {
 class _ServerNameScreenState extends ConsumerState<ServerNameScreen> {
   final _controller = TextEditingController();
 
-  void _submit() {
+  Future<void> _submit() async {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
 
-    ref.read(serverProvider.notifier).start(name);
-    ref.read(appModeProvider.notifier).startHosting(name);
+    try {
+      await ref.read(serverProvider.notifier).start(name);
+      ref.read(appModeProvider.notifier).startHosting(name);
+    } on SocketException catch (e, s) {
+      if (mounted) {
+        showErrorToast(context, 'Could not start server: ${e.message}', s);
+      }
+    }
   }
 
   @override

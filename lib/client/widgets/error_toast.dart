@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:forui/forui.dart';
+import '../../shared/logger.dart';
 
-void showErrorToast(BuildContext context, String message) {
+void showErrorToast(
+  BuildContext context,
+  String message, [
+  StackTrace? stackTrace,
+]) {
+  appLogger.e('Error toast: $message', stackTrace: stackTrace);
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
 

@@ -218,6 +218,7 @@ class ServerStateMachine {
 
   void _startCountdownSequence() {
     state.phase = GamePhase.countdown;
+    state.countdownSeconds = 5;
     _countdownActive = true;
 
     _sendCountdownTick(5);
@@ -226,6 +227,7 @@ class ServerStateMachine {
   void _sendCountdownTick(int seconds) {
     if (!_countdownActive || state.phase != GamePhase.countdown) return;
 
+    state.countdownSeconds = seconds;
     server.broadcast(ServerMessage.countdown(seconds: seconds));
 
     if (seconds > 1) {
@@ -261,6 +263,7 @@ class ServerStateMachine {
 
     _countdownActive = false;
     state.phase = GamePhase.playing;
+    state.countdownSeconds = 0;
 
     // Assign random spawn positions to every player.
     for (final player in state.players.values) {

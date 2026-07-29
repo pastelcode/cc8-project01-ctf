@@ -66,18 +66,19 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     final ipController = TextEditingController();
     final portController = TextEditingController(text: '8889');
 
-    showDialog<void>(
+    showFDialog<void>(
       context: context,
-      builder: (ctx) {
-        return Center(
+      builder: (context, style, animation) => FTheme(
+        data: context.theme,
+        child: Center(
           child: Container(
             width: 320,
             margin: const EdgeInsets.all(24),
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              color: context.theme.colors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: context.theme.colors.border),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -113,7 +114,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                   children: [
                     FButton(
                       variant: FButtonVariant.ghost,
-                      onPress: () => Navigator.of(ctx).pop(),
+                      onPress: () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     FButton(
@@ -125,7 +126,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                         final port = int.tryParse(portStr);
                         if (port == null || port < 1 || port > 65535) return;
 
-                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pop();
                         ref
                             .read(appModeProvider.notifier)
                             .showNameEntry(ip, port);
@@ -137,8 +138,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
               ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

@@ -33,7 +33,8 @@ class Constants {
   static const int countdownSeconds = 5;
 
   /// Minimum players required to start or continue the countdown.
-  static const int minPlayers = 2;
+  /// SPEC says 2, lowered to 1 for solo testing.
+  static const int minPlayers = 1;
 
   /// Pause after game_over before returning to lobby, in seconds.
   static const int postGameSeconds = 5;

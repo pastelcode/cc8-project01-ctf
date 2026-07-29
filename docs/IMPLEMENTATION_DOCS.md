@@ -414,3 +414,34 @@ test/
 | **Milestones completados**    | 9 (M0–M7)                                                                |
 | **Análisis estático**         | Zero issues                                                              |
 | **Protocolo**                 | CTF Standard v1.2.0 — implementación completa de los 12 tipos de mensaje |
+
+---
+
+## 7. Correcciones Post-MVP (v0.2.0)
+
+### Bugs corregidos en iteraciones posteriores
+
+| Bug                                                   | Causa                                                                   | Solución                                                                                         |
+| :---------------------------------------------------- | :---------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| Cuenta regresiva congelada en "5" (host)              | `_periodicSync` enviaba `countdown(5)` hardcodeado cada 100ms           | `ServerGameState` ahora almacena `countdownSeconds` real decrementado por la máquina de estados  |
+| Juego nunca iniciaba tras countdown (host)            | El host no recibía `Start` vía TCP (no es cliente)                      | `_tickSync` envía `Start` al `gameStateProvider` en el primer tick si la fase sigue en countdown |
+| Error "No Overlay widget found"                       | `WidgetsApp` sin `home` ni `pageRouteBuilder` no crea Navigator/Overlay | Añadido `home` + `pageRouteBuilder` a `WidgetsApp`                                               |
+| Error "No MaterialLocalizations found"                | `showDialog` (Material) requiere MaterialLocalizations                  | Reemplazado por `showFDialog` (Forui) en discovery screen                                        |
+| Error "Operation not permitted" en socket (macOS)     | Falta entitlement `com.apple.security.network.client`                   | Añadido a DebugProfile.entitlements y Release.entitlements                                       |
+| Error "Bad state: Using ref when widget is unmounted" | `ref.read()` en `dispose()`                                             | Notifiers guardados como `late final` en construcción del state                                  |
+| IP:puerto desaparecía al unirse un jugador            | `FutureBuilder` creaba nuevo future en cada rebuild                     | Future memoizado con `late final`                                                                |
+| IP:puerto tapado por botón "Start Game"               | Posicionado al final del Column, debajo del Stack overlay               | Movido bajo el título, arriba de la lista                                                        |
+| Host se unía como jugador a su propio servidor        | `_connectAsHost` enviaba `join`                                         | Conexión TCP del host eliminada; espectador solo vía `_periodicSync`                             |
+
+### Mejoras de calidad
+
+| Mejora                        | Detalle                                                                                                                    |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| Tema pixel retro              | Tema oscuro personalizado con fuente Departure Mono, colores arcade (verde neón, fondo espacio profundo), bordes pixel-art |
+| Soporte de teclado            | WASD/flechas para movimiento, E/Espacio para interactuar (aditivo al joystick táctil)                                      |
+| Logging con stack traces      | Todos los manejadores de error ahora capturan y registran `StackTrace`                                                     |
+| Tema Forui correcto           | `FToaster` + `FTooltipGroup` en raíz de la app según docs oficiales de Forui                                               |
+| Plataforma macOS              | Soporte completo con deployment target Sonoma 14.0, entitlements de red                                                    |
+| Nombres sobre avatares        | Etiquetas con fondo semi-transparente para legibilidad                                                                     |
+| Animación de cuenta regresiva | Escala + fade + rampa de color con sombra glow                                                                             |
+| Toast de errores              | Widget overlay con fade-in y auto-dismiss en 3s                                                                            |

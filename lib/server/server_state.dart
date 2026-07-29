@@ -56,6 +56,10 @@ class ServerGameState {
   /// yet.
   String? winnerId;
 
+  /// Current countdown second (5 → 1).  Read by [ServerProvider] so the host
+  /// spectating view shows the correct countdown tick.
+  int countdownSeconds = 5;
+
   // ---------------------------------------------------------------------------
   // Convenience projections
   // ---------------------------------------------------------------------------

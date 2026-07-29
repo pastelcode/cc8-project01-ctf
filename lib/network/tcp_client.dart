@@ -41,8 +41,9 @@ class TcpClient {
             final message = ServerMessage.fromJson(jsonMap);
             _messageController.add(message);
           }
-        } catch (e) {
-          _messageController.addError(e);
+        } catch (e, s) {
+          appLogger.e('TcpClient message parse error: $e', stackTrace: s);
+          _messageController.addError(e, s);
         }
       },
       onDone: () {
@@ -50,8 +51,9 @@ class TcpClient {
           _messageController.close();
         }
       },
-      onError: (error) {
-        _messageController.addError(error);
+      onError: (error, [StackTrace? stackTrace]) {
+        appLogger.e('TcpClient socket error: $error', stackTrace: stackTrace);
+        _messageController.addError(error, stackTrace);
       },
       cancelOnError: false,
     );

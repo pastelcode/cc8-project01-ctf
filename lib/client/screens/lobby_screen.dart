@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,8 +35,13 @@ class LobbyScreen extends ConsumerStatefulWidget {
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   StreamSubscription<ServerMessage>? _msgSub;
-  bool _hostConnected = false;
   bool _transitioning = false;
+
+  // Saved for safe use in dispose() per Riverpod guidelines.
+  late final _connectionNotifier = ref.read(connectionProvider.notifier);
+  late final _serverNotifier = ref.read(serverProvider.notifier);
+  late final _appModeNotifier = ref.read(appModeProvider.notifier);
+  late final _gameStateNotifier = ref.read(gameStateProvider.notifier);
 
   bool get _isHost => widget.isHost;
 
@@ -52,27 +58,27 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _connectAsJoiner() async {
-    final connNotifier = ref.read(connectionProvider.notifier);
+    final connNotifier = _connectionNotifier;
     try {
       await connNotifier.connect(widget.ip!, widget.port!);
-    } catch (e) {
+    } catch (e, s) {
       if (mounted) {
-        showErrorToast(context, 'Connection failed: $e');
-        ref.read(appModeProvider.notifier).backToMenu();
+        showErrorToast(context, 'Connection failed: $e', s);
+        _appModeNotifier.backToMenu();
       }
       return;
     }
 
     _msgSub = connNotifier.messages.listen(
       (msg) {
-        ref.read(gameStateProvider.notifier).handleMessage(msg);
+        _gameStateNotifier.handleMessage(msg);
         if (msg is ErrorMsg && mounted) {
           showErrorToast(context, msg.reason);
         }
       },
-      onError: (Object error) {
+      onError: (Object error, StackTrace s) {
         if (mounted) {
-          showErrorToast(context, 'Connection error: $error');
+          showErrorToast(context, 'Connection error: $error', s);
         }
       },
     );
@@ -83,34 +89,8 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     );
   }
 
-  Future<void> _connectAsHost(int port) async {
-    final connNotifier = ref.read(connectionProvider.notifier);
-    try {
-      await connNotifier.connect('localhost', port);
-    } catch (e) {
-      if (mounted) {
-        showErrorToast(context, 'Failed to connect to own server: $e');
-      }
-      return;
-    }
-
-    _msgSub = connNotifier.messages.listen((msg) {
-      ref.read(gameStateProvider.notifier).handleMessage(msg);
-      if (msg is ErrorMsg && mounted) {
-        showErrorToast(context, msg.reason);
-      }
-    });
-
-    await Future.delayed(const Duration(milliseconds: 100));
-    connNotifier.send(ClientMessage.join(v: 1, name: 'Host'));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
-
   void _startGame() {
-    ref.read(serverProvider.notifier).startCountdown();
+    _serverNotifier.startCountdown();
   }
 
   void _maybeTransitionToGame(GameWorld gameState) {
@@ -136,9 +116,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   void dispose() {
     _msgSub?.cancel();
     if (!_transitioning) {
-      ref.read(connectionProvider.notifier).disconnect();
+      _connectionNotifier.disconnect();
       if (_isHost) {
-        ref.read(serverProvider.notifier).stop();
+        _serverNotifier.stop();
       }
     }
     super.dispose();
@@ -148,23 +128,26 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   // Build
   // ---------------------------------------------------------------------------
 
+  late final Future<String> _localIpFuture = _resolveLocalIp();
+
+  Future<String> _resolveLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list();
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
+            return addr.address;
+          }
+        }
+      }
+    } catch (_) {}
+    return '?.?.?.?';
+  }
+
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameStateProvider);
     final serverHostState = _isHost ? ref.watch(serverProvider) : null;
-
-    if (_isHost &&
-        !_hostConnected &&
-        serverHostState != null &&
-        serverHostState.isRunning) {
-      _hostConnected = true;
-      final port = serverHostState.server?.port;
-      if (port != null && port > 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _connectAsHost(port);
-        });
-      }
-    }
 
     _maybeTransitionToGame(gameState);
 
@@ -181,22 +164,47 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                title.isNotEmpty ? title : 'Lobby',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              child: Row(
+                children: [
+                  if (_isHost && players.isEmpty)
+                    FButton(
+                      variant: FButtonVariant.ghost,
+                      onPress: () {
+                        _serverNotifier.stop();
+                        _appModeNotifier.backToMenu();
+                      },
+                      child: const Text('← Back'),
+                    ),
+                  const Spacer(),
+                  Text(
+                    title.isNotEmpty ? title : 'Lobby',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                ],
               ),
             ),
-            if (!_isHost && widget.ip != null && widget.port != null)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Players on this server',
-                  style: TextStyle(fontSize: 14, color: Colors.white54),
-                ),
+            if (_isHost && serverHostState != null && serverHostState.isRunning)
+              FutureBuilder<String>(
+                future: _localIpFuture,
+                builder: (context, snapshot) {
+                  final ip = snapshot.data ?? '?.?.?.?';
+                  final port = serverHostState.server?.port ?? '—';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      'Connect to: $ip:$port',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white38,
+                      ),
+                    ),
+                  );
+                },
               ),
             if (_isHost && players.isEmpty)
               const Expanded(
@@ -248,15 +256,6 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       ),
                     );
                   },
-                ),
-              ),
-
-            if (_isHost && serverHostState != null && serverHostState.isRunning)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Port: ${serverHostState.server?.port ?? '—'}',
-                  style: const TextStyle(fontSize: 12, color: Colors.white30),
                 ),
               ),
           ],

@@ -15,8 +15,16 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return WidgetsApp(
       color: const Color(0xFF1A1A2E),
-      builder: (context, child) =>
-          FTheme(data: pixelTheme, child: const AppShell()),
+      builder: (context, child) => FTheme(
+        data: pixelTheme,
+        child: FToaster(child: FTooltipGroup(child: child!)),
+      ),
+      home: const AppShell(),
+      pageRouteBuilder: <T>(settings, builder) => PageRouteBuilder<T>(
+        settings: settings,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            builder(context),
+      ),
     );
   }
 }

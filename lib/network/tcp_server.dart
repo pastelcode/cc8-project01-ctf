@@ -92,7 +92,8 @@ class ClientSession {
     }
   }
 
-  void _onError(Object error) {
+  void _onError(Object error, [StackTrace? stackTrace]) {
+    appLogger.e('ClientSession socket error: $error', stackTrace: stackTrace);
     close();
   }
 
@@ -253,10 +254,10 @@ class TcpServer {
         // Do NOT assign playerId here — the server engine does that on Join.
         _onJoinCtrl.add(session);
       },
-      onError: (Object error) {
+      onError: (Object error, StackTrace stackTrace) {
         // Server-level errors are logged but not re-thrown so that the
         // server stays alive for remaining clients.
-        appLogger.e('TcpServer accept error: $error');
+        appLogger.e('TcpServer accept error: $error', stackTrace: stackTrace);
       },
     );
   }

@@ -10,6 +10,7 @@ import '../../network/tcp_server.dart';
 import '../../server/server_game_loop.dart';
 import '../../server/server_state.dart';
 import '../../server/server_state_machine.dart';
+import '../../shared/logger.dart';
 import 'game_state_provider.dart';
 
 /// Snapshot of the host's server, exposed to the UI so the host can
@@ -99,7 +100,8 @@ class ServerNotifier extends Notifier<HostServerState> {
             _notifyStateChanged();
           }
         },
-        onError: (_) {
+        onError: (Object e, StackTrace s) {
+          appLogger.e('Server session error', error: e, stackTrace: s);
           if (session.playerId != null) {
             stateMachine.handleDisconnect(session.playerId!);
             _notifyStateChanged();
@@ -169,6 +171,17 @@ class ServerNotifier extends Notifier<HostServerState> {
   void _tickSync() {
     final gs = state.gameState;
     if (gs == null || gs.phase != GamePhase.playing) return;
+
+    // The host doesn't receive the Start broadcast via TCP, so fix the phase
+    // on the first tick if the client-side provider is still stuck in
+    // countdown.
+    final hostState = ref.read(gameStateProvider);
+    if (hostState.phase == GamePhase.countdown) {
+      ref
+          .read(gameStateProvider.notifier)
+          .handleMessage(const ServerMessage.start());
+    }
+
     ref.read(gameStateProvider.notifier).handleMessage(gs.toStateMsg());
 
     // Also refresh the gameLoop reference in HostServerState if it changed.
@@ -201,14 +214,11 @@ class ServerNotifier extends Notifier<HostServerState> {
               .handleMessage(ServerMessage.gameOver(winner: gs.winnerId!));
         }
       case GamePhase.countdown:
-        // The countdown seconds are tracked internally by the state machine,
-        // not in ServerGameState, so the best we can do here is push a
-        // countdown(5) to set the phase. Real clients receive the exact
-        // countdown via the TCP broadcast — the host gets a slightly less
-        // precise visual, which is acceptable for MVP.
         ref
             .read(gameStateProvider.notifier)
-            .handleMessage(const ServerMessage.countdown(seconds: 5));
+            .handleMessage(
+              ServerMessage.countdown(seconds: gs.countdownSeconds),
+            );
       case GamePhase.playing:
         // Covered by onTick at 20 Hz — no additional work needed here.
         break;
@@ -233,8 +243,8 @@ class ServerNotifier extends Notifier<HostServerState> {
           if (event != RawSocketEvent.read) return;
           _drainDiscoveryDatagrams(tcpPort);
         },
-        onError: (Object e) {
-          // Discovery is best-effort — don't crash the server.
+        onError: (Object e, StackTrace s) {
+          appLogger.e('UDP discovery error', error: e, stackTrace: s);
         },
         cancelOnError: false,
       );
