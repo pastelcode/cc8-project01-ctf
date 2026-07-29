@@ -5,6 +5,7 @@ import 'package:forui/forui.dart';
 import '../../core/constants.dart';
 import '../../core/validation.dart';
 import '../providers/app_mode_provider.dart';
+import '../providers/connection_provider.dart';
 
 class NameEntryScreen extends ConsumerStatefulWidget {
   const NameEntryScreen({super.key});
@@ -23,7 +24,7 @@ class _NameEntryScreenState extends ConsumerState<NameEntryScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final name = _controller.text;
     final error = ProtocolValidator.validateName(name);
     if (error != null) {
@@ -32,11 +33,22 @@ class _NameEntryScreenState extends ConsumerState<NameEntryScreen> {
     }
 
     final mode = ref.read(appModeProvider);
-    if (mode is NameEntry) {
-      ref
-          .read(appModeProvider.notifier)
-          .joinServer(mode.ip, mode.port, playerName: name);
+    if (mode is! NameEntry) return;
+
+    // Connect first, transition only on success.
+    final conn = ref.read(connectionProvider.notifier);
+    try {
+      await conn.connect(mode.ip, mode.port);
+    } catch (e, _) {
+      if (mounted) {
+        setState(() => _error = 'Could not connect: $e');
+      }
+      return;
     }
+
+    ref
+        .read(appModeProvider.notifier)
+        .joinServer(mode.ip, mode.port, playerName: name);
   }
 
   void _onChanged(String value) {

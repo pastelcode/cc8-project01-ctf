@@ -59,13 +59,18 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
   Future<void> _connectAsJoiner() async {
     final connNotifier = _connectionNotifier;
-    try {
-      await connNotifier.connect(widget.ip!, widget.port!);
-    } catch (e, s) {
-      if (mounted) {
-        showErrorToast(context, 'Connection failed: $e', s);
-        _appModeNotifier.backToMenu();
-      }
+
+    // Already connected by name entry screen.
+    if (ref.read(connectionProvider).isConnected) {
+      _msgSub = connNotifier.messages.listen((msg) {
+        _gameStateNotifier.handleMessage(msg);
+        if (msg is ErrorMsg && mounted) {
+          showErrorToast(context, msg.reason);
+        }
+      });
+      connNotifier.send(
+        ClientMessage.join(v: 1, name: widget.playerName ?? 'Player'),
+      );
       return;
     }
 
@@ -133,6 +138,19 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   Future<String> _resolveLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list();
+      // Prefer en0 (Wi-Fi) or en1 on macOS.
+      for (final name in ['en0', 'en1', 'wlan0', 'eth0']) {
+        for (final interface in interfaces) {
+          if (interface.name == name) {
+            for (final addr in interface.addresses) {
+              if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
+                return addr.address;
+              }
+            }
+          }
+        }
+      }
+      // Fallback: first non-loopback IPv4.
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
           if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {

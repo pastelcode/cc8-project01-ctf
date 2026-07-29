@@ -28,7 +28,7 @@ class TcpClient {
 
   /// Connect to the server. Throws on connection failure.
   Future<void> connect() async {
-    _socket = await Socket.connect(host, port);
+    _socket = await Socket.connect(InternetAddress(host), port);
 
     _socket!.listen(
       (data) {

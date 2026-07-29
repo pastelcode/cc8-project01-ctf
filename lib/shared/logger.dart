@@ -7,11 +7,12 @@ import 'package:logger/logger.dart';
 final appLogger = Logger(
   filter: ProductionFilter(),
   printer: PrettyPrinter(
-    methodCount: 0,
-    errorMethodCount: 5,
+    methodCount: 10,
+    errorMethodCount: 20,
     lineLength: 80,
     colors: true,
     printEmojis: false,
+    noBoxingByDefault: true,
   ),
   output: ConsoleOutput(),
 );

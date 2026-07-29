@@ -30,9 +30,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Future<void> _startScanning() async {
     setState(() => _scanning = true);
 
-    await UdpDiscovery.sendDiscover();
     _listener?.cancel();
-    _listener = UdpDiscovery.listenWithSource().listen((record) {
+    _listener = UdpDiscovery.discoverAndListen().listen((record) {
       final ip = record.source.address;
       final info = record.info;
       setState(() {
@@ -47,7 +46,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       });
     });
 
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 5), () {
       if (mounted) setState(() => _scanning = false);
     });
   }
@@ -183,7 +182,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         if (_scanning)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(height: 3, child: LinearProgressIndicator()),
+            child: SizedBox(height: 3, child: FProgress()),
           ),
         // Content
         Expanded(

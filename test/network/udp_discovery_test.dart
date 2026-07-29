@@ -283,7 +283,17 @@ void main() {
       subscriptions.add(sub);
 
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      await UdpDiscovery.sendDiscover();
+      // Send a raw discover broadcast manually since sendDiscover was
+      // replaced by discoverAndListen (which uses a single socket).
+      final sender = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      sender.broadcastEnabled = true;
+      sender.send(
+        utf8.encode('{"type":"discover","v":1}'),
+        InternetAddress('255.255.255.255'),
+        UdpDiscovery.discoveryPort,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      sender.close();
 
       final addr = await completer.future.timeout(
         const Duration(seconds: 5),

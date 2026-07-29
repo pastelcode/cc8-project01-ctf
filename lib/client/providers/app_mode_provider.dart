@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'connection_provider.dart';
+import 'game_state_provider.dart';
+
 /// The current app mode / screen.
 sealed class AppMode {
   const AppMode();
@@ -63,20 +66,44 @@ class AppModeNotifier extends Notifier<AppMode> {
   ///
   /// If the current state is [InGame] and the player was hosting
   /// (isSpectator), go back to [Hosting]; for joiners go back to
-  /// [Discovering]. In all other cases return to [ModeSelect].
+  /// [Joining] so they stay in the lobby and can play another round.
+  /// Falls back to [ModeSelect] if the connection was lost.
   void backToLobby() {
     switch (state) {
       case InGame(:final isSpectator):
         if (isSpectator) {
           state = const Hosting(serverName: '');
         } else {
-          state = const ModeSelect();
+          final conn = ref.read(connectionProvider);
+          final ip = conn.client?.host;
+          final port = conn.client?.port;
+          if (ip != null && port != null && conn.isConnected) {
+            final gameState = ref.read(gameStateProvider);
+            state = Joining(
+              ip: ip,
+              port: port,
+              playerName: _resolvePlayerName(gameState),
+            );
+          } else {
+            // Connection lost — fall back to menu.
+            state = const ModeSelect();
+          }
         }
       case Hosting(:final serverName):
         state = Hosting(serverName: serverName);
       case _:
         state = const ModeSelect();
     }
+  }
+
+  /// Looks up the local player's name from the game state's lobby roster.
+  String _resolvePlayerName(GameWorld gameState) {
+    final id = gameState.playerId;
+    if (id == null) return 'Player';
+    for (final p in gameState.lobbyPlayers) {
+      if (p.id == id) return p.name;
+    }
+    return 'Player';
   }
 
   void backToMenu() => state = const ModeSelect();

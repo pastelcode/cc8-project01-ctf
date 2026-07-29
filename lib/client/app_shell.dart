@@ -19,12 +19,13 @@ class AppShell extends ConsumerWidget {
     final mode = ref.watch(appModeProvider);
 
     // When a game ends, the server broadcasts a Lobby message and the client's
-    // gameStateProvider resets to phase=lobby. Transition back to the menu.
+    // gameStateProvider resets to phase=lobby. Transition back to the lobby
+    // so the player can join the next round without going through the menu.
     ref.listen<GameWorld>(gameStateProvider, (prev, next) {
       if (next.phase == GamePhase.lobby) {
         final currentMode = ref.read(appModeProvider);
         if (currentMode is InGame) {
-          ref.read(appModeProvider.notifier).backToMenu();
+          ref.read(appModeProvider.notifier).backToLobby();
         }
       }
     });

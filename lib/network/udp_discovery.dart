@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../core/constants.dart';
 import '../core/messages.dart';
+import '../shared/logger.dart';
 
 /// UDP server-discovery module per SPEC §1.3.
 ///
@@ -19,58 +20,111 @@ class UdpDiscovery {
   // Client-side: send
   // ---------------------------------------------------------------------------
 
-  /// Sends a discover broadcast to 255.255.255.255:8888 AND the subnet
-  /// broadcast for every active IPv4 interface.
+  /// Sends a discover broadcast and returns a stream of [ServerInfo]
+  /// responses received on the same socket. Uses a single socket for both
+  /// sending and receiving so responses arrive at the correct port.
   ///
-  /// Enables [RawDatagramSocket.broadcastEnabled] before sending.  On
-  /// platforms that do not support `SO_BROADCAST` (e.g. the iOS simulator)
-  /// the attempt is silently ignored — the caller should offer manual
-  /// fallback via [sendDiscoverUnicast].
-  static Future<void> sendDiscover() async {
+  /// After 5 seconds the socket is closed and the stream completes.
+  static Stream<({InternetAddress source, ServerInfo info})>
+  discoverAndListen() async* {
+    final RawDatagramSocket socket;
+    try {
+      socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    } catch (e) {
+      appLogger.w('UDP discovery bind failed — discovery unavailable: $e');
+      return;
+    }
+    final controller =
+        StreamController<
+          ({InternetAddress source, ServerInfo info})
+        >.broadcast();
+
+    // Enable broadcast for sending.
+    try {
+      socket.broadcastEnabled = true;
+    } catch (_) {}
+
     final data = utf8.encode(jsonEncode({'type': 'discover', 'v': 1}));
 
-    final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    // -- 1. Limited broadcast (255.255.255.255) --------------------------
     try {
-      // Enable broadcast — required by SPEC §1.3.
-      try {
-        socket.broadcastEnabled = true;
-      } catch (_) {
-        // Platform may not support SO_BROADCAST (e.g. iOS simulator).
-      }
+      socket.send(data, InternetAddress('255.255.255.255'), discoveryPort);
+    } catch (_) {}
 
-      // 1) Limited broadcast (255.255.255.255)
-      try {
-        socket.send(data, InternetAddress('255.255.255.255'), discoveryPort);
-      } catch (_) {
-        // Broadcast send failed — network may disallow it.
-      }
-
-      // 2) Subnet broadcast for each active IPv4 interface.
-      try {
-        final interfaces = await NetworkInterface.list();
-        for (final interface in interfaces) {
-          for (final addr in interface.addresses) {
-            if (addr.type != InternetAddressType.IPv4) continue;
-            final parts = addr.address.split('.');
-            if (parts.length != 4) continue;
-            // Without subnet-mask info from dart:io we assume /24, the
-            // most common home-network prefix.  Even when the assumption
-            // is wrong the limited broadcast sent above still covers the
-            // local subnet on virtually all consumer routers.
-            final broadcast = '${parts[0]}.${parts[1]}.${parts[2]}.255';
-            try {
-              socket.send(data, InternetAddress(broadcast), discoveryPort);
-            } catch (_) {
-              // Gracefully ignore per-interface send failures.
-            }
-          }
+    // -- 2. Subnet broadcasts + unicast gateway probes -------------------
+    final subnetBroadcasts = <String>{};
+    final gateways = <String>{};
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+      );
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          final parts = addr.address.split('.');
+          if (parts.length != 4) continue;
+          final prefix = '${parts[0]}.${parts[1]}.${parts[2]}';
+          subnetBroadcasts.add('$prefix.255');
+          gateways.add('$prefix.1');
+          gateways.add('$prefix.254');
         }
-      } catch (_) {
-        // NetworkInterface.list() may fail on some platforms.
       }
-    } finally {
-      socket.close();
+    } catch (_) {}
+
+    // Send subnet-directed broadcasts.
+    for (final broadcast in subnetBroadcasts) {
+      try {
+        socket.send(data, InternetAddress(broadcast), discoveryPort);
+      } catch (_) {}
     }
+
+    // Unicast fallback: probe common gateway IPs in case broadcasts are
+    // blocked (e.g. iOS local-network permission denied).
+    for (final gateway in gateways) {
+      try {
+        socket.send(data, InternetAddress(gateway), discoveryPort);
+      } catch (_) {}
+    }
+
+    // Listen on the same socket — responses arrive at the source port.
+    Timer? closeTimer;
+    socket.listen(
+      (RawSocketEvent event) {
+        if (event != RawSocketEvent.read) return;
+        try {
+          for (
+            Datagram? d = socket.receive();
+            d != null;
+            d = socket.receive()
+          ) {
+            final datagram = d;
+            try {
+              final text = utf8.decode(datagram.data);
+              final json = jsonDecode(text) as Map<String, dynamic>;
+              if (json['type'] != 'server_info') continue;
+              if (json['v'] != 1) continue;
+              final canonical = canonicalizeDiscriminator(json);
+              final msg = UdpMessage.fromJson(canonical);
+              if (msg is ServerInfo && !controller.isClosed) {
+                controller.add((source: datagram.address, info: msg));
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      },
+      onError: (_) {},
+      onDone: () {
+        if (!controller.isClosed) controller.close();
+        closeTimer?.cancel();
+      },
+      cancelOnError: false,
+    );
+
+    // Auto-close after 5 seconds (3 s broadcast + 2 s unicast window).
+    closeTimer = Timer(const Duration(seconds: 5), () {
+      socket.close();
+    });
+
+    yield* controller.stream;
   }
 
   /// Sends a discover unicast to `ip:8888` (manual fallback per SPEC §1.3).
