@@ -1,6 +1,6 @@
 # Capture The Flag — CTF Mobile
 
-> **📄 [Documentación de Implementación](docs/IMPLEMENTATION_DOCS.md)** — Cronología completa, arquitectura, commits, agentes de IA, y métricas.
+> **📄 [Implementation Documentation](docs/IMPLEMENTATION_DOCS.md)** — Full chronology, architecture, commits, AI agents, and metrics.
 
 Capture The Flag — LAN multiplayer mobile game for CC8 at Galileo University. One device hosts the server (spectator-only); others join via automatic UDP broadcast discovery. All projects interoperate through the shared CTF Protocol v1.2.0 over raw TCP/UDP sockets.
 
