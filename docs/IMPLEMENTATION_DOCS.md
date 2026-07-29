@@ -1,222 +1,221 @@
-# Documentación de Implementación — Capture The Flag (CTF)
+# Implementation Documentation — Capture The Flag (CTF)
 
-> **Proyecto:** CC8 2026 — Captura la Bandera  
-> **Lenguaje:** Dart 3.12.2 / Flutter 3.44.8+  
-> **Protocolo:** CTF Standard v1.2.0  
-> **Autor:** CC8 — Proyecto Individual  
-> **Período:** 26–28 de julio, 2026
-
----
-
-## 1. Cronología de Desarrollo
-
-### Día 1 — 26 de julio, 2026: Documentación y Arquitectura
-
-**Objetivo:** Definir el alcance del MVP, stack tecnológico, arquitectura del sistema, y preparar el entorno de desarrollo.
-
-| Hora  | Actividad                                                                                                               |
-| :---- | :---------------------------------------------------------------------------------------------------------------------- |
-| 14:45 | **Commit `94bf06c`** — Documentación inicial                                                                            |
-|       | Se definió el stack: Flutter 3.44.8+, Dart 3.12.2, Riverpod, Freezed, Forui, dart:io, logger, CustomPainter             |
-|       | Se eliminó Flame (innecesario — CustomPainter suficiente para renderizado 2D simple)                                    |
-|       | Se confirmó: host = espectador solamente, cliente = jugador con controles                                               |
-|       | Se decidió usar enums con `@JsonValue` en lugar de strings crudos para `ServerState`, `GamePhase`, `ErrorReason`        |
-|       | Se crearon: `PRD.md`, `TDD.md`, `MEMORY.md`, `AGENTS.md`, `CURRENT_SPRINT.md`, `IMPLEMENTATION_PLAN.md`, `CHANGELOG.md` |
-|       | Se tradujo `GUIA_PROYECTO.md` → `PROJECT_GUIDE.md` (SPEC.md ya estaba en inglés)                                        |
-
-**Entregables del día:** 6 documentos de arquitectura y planificación, estructura del proyecto definida, stack tecnológico congelado.
+> **Project:** CC8 2026 — Capture The Flag  
+> **Language:** Dart 3.12.2 / Flutter 3.44.8+  
+> **Protocol:** CTF Standard v1.2.0  
+> **Author:** CC8 — Individual Project  
+> **Period:** July 26–28, 2026
 
 ---
 
-### Día 2 — 28 de julio, 2026: Implementación Completa del MVP
+## 1. Development Timeline
 
-La implementación se realizó en **6 commits** a lo largo del día, organizados por capa arquitectónica.
+### Day 1 — July 26, 2026: Documentation and Architecture
 
----
+**Objective:** Define the MVP scope, technology stack, system architecture, and prepare the development environment.
 
-#### Commit `ceb06a8` — Capas Core, Network y Server Engine (M0–M3)
+| Time  | Activity                                                                                                             |
+| :---- | :------------------------------------------------------------------------------------------------------------------- |
+| 14:45 | **Commit `94bf06c`** — Initial documentation                                                                         |
+|       | Stack defined: Flutter 3.44.8+, Dart 3.12.2, Riverpod, Freezed, Forui, dart:io, logger, CustomPainter                |
+|       | Removed Flame (unnecessary — CustomPainter sufficient for simple 2D rendering)                                       |
+|       | Confirmed: host = spectator only, client = player with controls                                                      |
+|       | Decided to use enums with `@JsonValue` instead of raw strings for `ServerState`, `GamePhase`, `ErrorReason`          |
+|       | Created: `PRD.md`, `TDD.md`, `MEMORY.md`, `AGENTS.md`, `CURRENT_SPRINT.md`, `IMPLEMENTATION_PLAN.md`, `CHANGELOG.md` |
+|       | Translated `GUIA_PROYECTO.md` → `PROJECT_GUIDE.md` (SPEC.md was already in English)                                  |
 
-**Hora:** 14:33
-
-**Cambios:** 28 archivos, +7,933 líneas, 123 pruebas unitarias.
-
-**Detalle por capa:**
-
-| Capa       | Archivos                                                                       | Propósito                                                                                                                                                 |
-| :--------- | :----------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/`    | `messages.dart`, `constants.dart`, `validation.dart`, `geometry.dart`          | Modelos del protocolo (12 tipos de mensaje en Freezed sealed unions), 19 constantes del SPEC §2.3, validación de nombres/direcciones, geometría del juego |
-| `network/` | `tcp_framing.dart`, `tcp_client.dart`, `tcp_server.dart`, `udp_discovery.dart` | Framing JSON delimitado por `\n`, cliente TCP con Stream<ServerMessage>, servidor TCP con broadcast coalescible, descubrimiento UDP dual-broadcast        |
-| `server/`  | `server_state.dart`, `server_state_machine.dart`, `server_game_loop.dart`      | Estado del mundo, máquina de estados (Lobby→Countdown→Playing→GameOver→Lobby), game loop autoritativo a 20 Hz                                             |
-| `shared/`  | `logger.dart`                                                                  | Logger global con `ProductionFilter` + `logMessage()` para debug                                                                                          |
-
-**Bug corregido en esta etapa:** Freezed genera valores discriminadores en camelCase (`serverInfo`, `gameOver`) pero el SPEC requiere snake_case (`server_info`, `game_over`). Se implementaron helpers `canonicalizeDiscriminator()` y `restoreDiscriminator()` aplicados en la capa de red.
-
-**Pruebas:** 123 unit tests (framing 13, validación 30, geometría 14, cliente TCP 7, servidor TCP 11, discovery 8, state machine 13, game loop 27).
+**Day deliverables:** 6 architecture and planning documents, project structure defined, technology stack frozen.
 
 ---
 
-#### Commit `3e7f617` — Cliente UI: Pantallas de Menú (M4)
+### Day 2 — July 28, 2026: Full MVP Implementation
 
-**Hora:** 14:50
-
-**Cambios:** 10 archivos, +903 líneas.
-
-| Componente                 | Propósito                                                                                                                               |
-| :------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| `app_mode_provider.dart`   | Máquina de estados de la app: clase sellada `AppMode` con 7 estados (ModeSelect→HostSetup→Hosting→Discovering→NameEntry→Joining→InGame) |
-| `app_shell.dart`           | Router de pantallas usando Dart 3 `switch` expressions sobre `AppMode`                                                                  |
-| `mode_select_screen.dart`  | Pantalla inicial con botones Forui: "Host Game" / "Join Game"                                                                           |
-| `server_name_screen.dart`  | Ingreso de nombre del servidor (host)                                                                                                   |
-| `discovery_screen.dart`    | Escaneo UDP automático, lista de servidores, entrada manual de IP                                                                       |
-| `name_entry_screen.dart`   | Ingreso de nombre del jugador con validación (1–20 chars, sin caracteres de control)                                                    |
-| `lobby_screen.dart`        | Lista de jugadores, botón "Start Game", overlay de cuenta regresiva                                                                     |
-| `connection_provider.dart` | Gestión del ciclo de vida del TcpClient (conectar, enviar, recibir Stream<ServerMessage>)                                               |
-| `main.dart`                | Cableado de Forui `FTheme` + `ProviderScope` + `AppShell`                                                                               |
-
-**Extensión de UDP Discovery:** Se añadió `listenWithSource()` a `UdpDiscovery` para obtener la IP de origen junto con cada `ServerInfo`, necesario para que el discovery screen sepa a qué IP conectar.
+Implementation was completed in **6 commits** throughout the day, organized by architectural layer.
 
 ---
 
-#### Commit `22d2411` — Pantalla de Juego, Renderizado y Controles (M5)
+#### Commit `ceb06a8` — Core, Network, and Server Engine Layers (M0–M3)
 
-**Hora:** 15:02
+**Time:** 14:33
 
-**Cambios:** 6 archivos, +476 líneas.
+**Changes:** 28 files, +7,933 lines, 123 unit tests.
 
-| Componente                 | Propósito                                                                                                                                                                                                                                                             |
-| :------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `game_painter.dart`        | `CustomPainter` que mapea coordenadas lógicas 1000×1000 a píxeles de pantalla. Renderiza: fondo oscuro, círculo central (trazo), jugadores (círculos de radio 15), bandera (asta blanca + triángulo rojo). Jugador local en verde (#00FF88), otros en azul (#4488FF). |
-| `virtual_joystick.dart`    | Área táctil circular 140×140px, cuantificación a 8 direcciones, zona muerta de 15px, envío de `Dir` solo cuando cambia la dirección                                                                                                                                   |
-| `interact_button.dart`     | Botón circular rojo 72×72px con "E", envía `interact` onTap                                                                                                                                                                                                           |
-| `game_screen.dart`         | Compone GamePainter + joystick + botón interact. Overlays de cuenta regresiva y game over. Modo espectador: oculta controles.                                                                                                                                         |
-| `game_state_provider.dart` | `GameWorld` inmutable con 7 campos, `GameStateNotifier` que procesa todos los tipos de `ServerMessage`                                                                                                                                                                |
+**Detail by layer:**
 
----
+| Layer      | Files                                                                          | Purpose                                                                                                                                   |
+| :--------- | :----------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/`    | `messages.dart`, `constants.dart`, `validation.dart`, `geometry.dart`          | Protocol models (12 message types in Freezed sealed unions), 19 constants from SPEC §2.3, name/address validation, game geometry          |
+| `network/` | `tcp_framing.dart`, `tcp_client.dart`, `tcp_server.dart`, `udp_discovery.dart` | `\n`-delimited JSON framing, TCP client with `Stream<ServerMessage>`, TCP server with coalescible broadcast, dual-broadcast UDP discovery |
+| `server/`  | `server_state.dart`, `server_state_machine.dart`, `server_game_loop.dart`      | World state, state machine (Lobby→Countdown→Playing→GameOver→Lobby), authoritative game loop at 20 Hz                                     |
+| `shared/`  | `logger.dart`                                                                  | Global logger with `ProductionFilter` + `logMessage()` for debug                                                                          |
 
-#### Commit `47f40d6` — Integración Servidor-Cliente (M6)
+**Bug fixed at this stage:** Freezed generates discriminator values in camelCase (`serverInfo`, `gameOver`) but the SPEC requires snake_case (`server_info`, `game_over`). Implemented helpers `canonicalizeDiscriminator()` and `restoreDiscriminator()` applied at the network layer.
 
-**Hora:** 15:16
-
-**Cambios:** 9 archivos, +567 líneas.
-
-Este fue el commit más crítico — cableó el flujo completo:
-
-| Componente                      | Propósito                                                                                                                                                                                                                                              |
-| :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server_provider.dart`          | Gestión del ciclo de vida del servidor: crea `TcpServer` + `ServerGameState` + `ServerStateMachine` + `ServerGameLoop`. Sincroniza el estado del servidor → `gameStateProvider` para la vista espectador. Responde a `discover` UDP con `server_info`. |
-| `lobby_screen.dart` (reescrito) | Flujo host: espera que el servidor esté listo, conecta como cliente local, muestra jugadores. Flujo joiner: conecta al servidor remoto, envía `join`, muestra jugadores. Transiciones de fase automáticas a `InGame` al recibir `start`.               |
-| `server_name_screen.dart`       | Al presionar "Start Server", inicia el servidor real mediante `server_provider`                                                                                                                                                                        |
-| `app_shell.dart`                | Detecta transición post-game (`game_over` → `lobby`) y retorna al menú                                                                                                                                                                                 |
-| `app_mode_provider.dart`        | `backToLobby()` corregido para distinguir host vs joiner                                                                                                                                                                                               |
-| `server_game_loop.dart`         | Añadido callback `onTick` para sincronización del espectador a 20 Hz                                                                                                                                                                                   |
+**Tests:** 123 unit tests (framing 13, validation 30, geometry 14, TCP client 7, TCP server 11, discovery 8, state machine 13, game loop 27).
 
 ---
 
-#### Commit `e876b19` — Pulido Final (M7)
+#### Commit `3e7f617` — UI Client: Menu Screens (M4)
 
-**Hora:** 15:24
+**Time:** 14:50
 
-**Cambios:** 7 archivos, +321 líneas.
+**Changes:** 10 files, +903 lines.
 
-| Mejora                        | Detalle                                                                                                                                                                  |
-| :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nombres sobre avatares        | `GamePainter` acepta `Map<String, String> playerNames`. Nombres renderizados con fondo semi-transparente para legibilidad.                                               |
-| Animación de cuenta regresiva | `TweenAnimationBuilder` con escala 0.5→1.0 + fade. Rampa de color: 5=blanco, 4=amarillo, 3=naranja, 2=rojo, 1=rojo brillante. Sombra glow.                               |
-| Toast de errores              | Widget overlay: pastilla roja con ícono de error, fade-in, auto-dismiss en 3s. Integrado en lobby (host y joiner).                                                       |
-| Stress test                   | 100 clientes TCP simultáneos, todos envían `join`, movimiento aleatorio por 5 segundos a 20 Hz. Verifica: sin crashes, 100 welcomes recibidos, fase `playing` mantenida. |
+| Component                  | Purpose                                                                                                                     |
+| :------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| `app_mode_provider.dart`   | App state machine: sealed class `AppMode` with 7 states (ModeSelect→HostSetup→Hosting→Discovering→NameEntry→Joining→InGame) |
+| `app_shell.dart`           | Screen router using Dart 3 `switch` expressions on `AppMode`                                                                |
+| `mode_select_screen.dart`  | Initial screen with Forui buttons: "Host Game" / "Join Game"                                                                |
+| `server_name_screen.dart`  | Server name entry (host)                                                                                                    |
+| `discovery_screen.dart`    | Automatic UDP scanning, server list, manual IP entry                                                                        |
+| `name_entry_screen.dart`   | Player name entry with validation (1–20 chars, no control characters)                                                       |
+| `lobby_screen.dart`        | Player list, "Start Game" button, countdown overlay                                                                         |
+| `connection_provider.dart` | `TcpClient` lifecycle management (connect, send, receive `Stream<ServerMessage>`)                                           |
+| `main.dart`                | Wiring of Forui `FTheme` + `ProviderScope` + `AppShell`                                                                     |
 
----
-
-#### Commit `39f25b1` — Plataforma macOS
-
-**Hora:** 15:49
-
-**Cambios:** 32 archivos, +1,520 líneas.
-
-Se añadió macOS como plataforma adicional (iOS y Android ya existían). Configuración para Xcode 16+:
-
-| Archivo                                  | Cambio                                                                                                                         |
-| :--------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
-| `macos/Podfile`                          | Creado con `platform :osx, '14.0'` y `post_install` que fuerza `MACOSX_DEPLOYMENT_TARGET = '14.0'` en todos los Pods           |
-| `macos/Runner.xcodeproj/project.pbxproj` | `MACOSX_DEPLOYMENT_TARGET` cambiado de `10.15` a `14.0` en las 3 configuraciones de Flutter Assemble (Debug, Profile, Release) |
+**UDP Discovery Extension:** Added `listenWithSource()` to `UdpDiscovery` to obtain the source IP along with each `ServerInfo`, needed so the discovery screen knows which IP to connect to.
 
 ---
 
-## 2. Control de Versiones y Git
+#### Commit `22d2411` — Game Screen, Rendering, and Controls (M5)
+
+**Time:** 15:02
+
+**Changes:** 6 files, +476 lines.
+
+| Component                  | Purpose                                                                                                                                                                                                                                                |
+| :------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game_painter.dart`        | `CustomPainter` that maps 1000×1000 logical coordinates to screen pixels. Renders: dark background, central circle (stroke), players (radius 15 circles), flag (white pole + red triangle). Local player in green (#00FF88), others in blue (#4488FF). |
+| `virtual_joystick.dart`    | Circular touch area 140×140px, 8-direction quantization, 15px dead zone, sends `Dir` only when direction changes                                                                                                                                       |
+| `interact_button.dart`     | Red circular button 72×72px with "E", sends `interact` onTap                                                                                                                                                                                           |
+| `game_screen.dart`         | Composes GamePainter + joystick + interact button. Countdown and game over overlays. Spectator mode: hides controls.                                                                                                                                   |
+| `game_state_provider.dart` | Immutable `GameWorld` with 7 fields, `GameStateNotifier` that processes all `ServerMessage` types                                                                                                                                                      |
+
+---
+
+#### Commit `47f40d6` — Server-Client Integration (M6)
+
+**Time:** 15:16
+
+**Changes:** 9 files, +567 lines.
+
+This was the most critical commit — it wired the full flow:
+
+| Component                       | Purpose                                                                                                                                                                                                                         |
+| :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `server_provider.dart`          | Server lifecycle management: creates `TcpServer` + `ServerGameState` + `ServerStateMachine` + `ServerGameLoop`. Syncs server state → `gameStateProvider` for the spectator view. Responds to UDP `discover` with `server_info`. |
+| `lobby_screen.dart` (rewritten) | Host flow: waits for server to be ready, connects as local client, shows players. Joiner flow: connects to remote server, sends `join`, shows players. Automatic phase transitions to `InGame` upon receiving `start`.          |
+| `server_name_screen.dart`       | On pressing "Start Server", starts the real server via `server_provider`                                                                                                                                                        |
+| `app_shell.dart`                | Detects post-game transition (`game_over` → `lobby`) and returns to menu                                                                                                                                                        |
+| `app_mode_provider.dart`        | `backToLobby()` fixed to distinguish host vs joiner                                                                                                                                                                             |
+| `server_game_loop.dart`         | Added `onTick` callback for spectator sync at 20 Hz                                                                                                                                                                             |
+
+---
+
+#### Commit `e876b19` — Final Polish (M7)
+
+**Time:** 15:24
+
+**Changes:** 7 files, +321 lines.
+
+| Improvement            | Detail                                                                                                                                                          |
+| :--------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name labels on avatars | `GamePainter` accepts `Map<String, String> playerNames`. Names rendered with semi-transparent background for readability.                                       |
+| Countdown animation    | `TweenAnimationBuilder` with scale 0.5→1.0 + fade. Color ramp: 5=white, 4=yellow, 3=orange, 2=red, 1=bright red. Glow shadow.                                   |
+| Error toast            | Overlay widget: red pill with error icon, fade-in, auto-dismiss in 3s. Integrated in lobby (host and joiner).                                                   |
+| Stress test            | 100 simultaneous TCP clients, all send `join`, random movement for 5 seconds at 20 Hz. Verifies: no crashes, 100 welcomes received, `playing` phase maintained. |
+
+---
+
+#### Commit `39f25b1` — macOS Platform
+
+**Time:** 15:49
+
+**Changes:** 32 files, +1,520 lines.
+
+Added macOS as an additional platform (iOS and Android already existed). Configuration for Xcode 16+:
+
+| File                                     | Change                                                                                                                       |
+| :--------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
+| `macos/Podfile`                          | Created with `platform :osx, '14.0'` and `post_install` that forces `MACOSX_DEPLOYMENT_TARGET = '14.0'` in all Pods          |
+| `macos/Runner.xcodeproj/project.pbxproj` | `MACOSX_DEPLOYMENT_TARGET` changed from `10.15` to `14.0` in the 3 Flutter Assemble configurations (Debug, Profile, Release) |
+
+---
+
+## 2. Version Control and Git
 
 ### Commits
 
-| Hash      | Fecha        | Descripción                                                     | Archivos |    +/−     |
-| :-------- | :----------- | :-------------------------------------------------------------- | :------: | :--------: |
-| `94bf06c` | Jul 26 14:45 | docs: PRD, TDD, agent orchestration, scaffolding                |    77    |   +4,324   |
-| `ceb06a8` | Jul 28 14:33 | feat: core, network, and server engine layers                   |    28    | +7,933 −73 |
-| `3e7f617` | Jul 28 14:50 | feat: client UI foundation and menu screens                     |    10    |  +903 −4   |
-| `22d2411` | Jul 28 15:02 | feat: game screen, painter, and input widgets                   |    6     |  +476 −5   |
-| `47f40d6` | Jul 28 15:16 | feat: server-client integration and lobby lifecycle             |    9     | +567 −162  |
-| `e876b19` | Jul 28 15:24 | feat: polish — name labels, countdown, error toast, stress test |    7     |  +321 −73  |
-| `39f25b1` | Jul 28 15:49 | build: add macOS platform with Sonoma deployment target         |    32    | +1,520 −6  |
+| Hash      | Date         | Description                                                     | Files |    +/−     |
+| :-------- | :----------- | :-------------------------------------------------------------- | :---: | :--------: |
+| `94bf06c` | Jul 26 14:45 | docs: PRD, TDD, agent orchestration, scaffolding                |  77   |   +4,324   |
+| `ceb06a8` | Jul 28 14:33 | feat: core, network, and server engine layers                   |  28   | +7,933 −73 |
+| `3e7f617` | Jul 28 14:50 | feat: client UI foundation and menu screens                     |  10   |  +903 −4   |
+| `22d2411` | Jul 28 15:02 | feat: game screen, painter, and input widgets                   |   6   |  +476 −5   |
+| `47f40d6` | Jul 28 15:16 | feat: server-client integration and lobby lifecycle             |   9   | +567 −162  |
+| `e876b19` | Jul 28 15:24 | feat: polish — name labels, countdown, error toast, stress test |   7   |  +321 −73  |
+| `39f25b1` | Jul 28 15:49 | build: add macOS platform with Sonoma deployment target         |  32   | +1,520 −6  |
 
-**Total:** 7 commits, ~170 archivos, ~16,000 líneas añadidas.
+**Total:** 7 commits, ~170 files, ~16,000 lines added.
 
-### Estrategia de Ramas
+### Branching Strategy
 
-- **Rama única `main`** — trunk-based development. Sin feature branches (proyecto individual).
-- Commits atómicos por milestone (M0→M7), cada uno con el sistema en estado funcional y todos los tests pasando.
-- Zero force-pushes, zero reverts. Historial lineal.
+- **Single `main` branch** — trunk-based development. No feature branches (individual project).
+- Atomic commits per milestone (M0→M7), each with the system in a functional state and all tests passing.
+- Zero force-pushes, zero reverts. Linear history.
 
 ---
 
-## 3. Arquitectura de Conexiones
+## 3. Connection Architecture
 
-### Diagrama de Comunicación
+### Communication Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     DISPOSITIVO HOST                             │
+│                     HOST DEVICE                                  │
 │                                                                  │
 │  ┌──────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │ UDP :8888 │◄───│ Descubrimiento│───►│ Respuesta server_info│  │
-│  │ (escucha) │    │ (broadcast)  │    │ (unicast al cliente) │  │
+│  │ UDP :8888 │◄───│ Discovery    │───►│ server_info response │  │
+│  │ (listens) │    │ (broadcast)  │    │ (unicast to client)  │  │
 │  └──────────┘    └──────────────┘    └──────────────────────┘  │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ TCP Server (puerto dinámico)                              │   │
-│  │  • Acepta hasta 100 conexiones                            │   │
-│  │  • Framing: JSON delimitado por \n (UTF-8)               │   │
-│  │  • Coalescencia de mensajes state para clientes lentos    │   │
-│  │  • Game loop autoritativo a 20 Hz                         │   │
-│  │  • Vista espectador (sin controles)                       │   │
+│  │ TCP Server (dynamic port)                                 │   │
+│  │  • Accepts up to 100 connections                           │   │
+│  │  • Framing: \n-delimited JSON (UTF-8)                     │   │
+│  │  • State message coalescence for slow clients              │   │
+│  │  • Authoritative game loop at 20 Hz                        │   │
+│  │  • Spectator view (no controls)                            │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ LAN (Wi-Fi)
                               │
 ┌─────────────────────────────┼─────────────────────────────────┐
-│                     DISPOSITIVO CLIENTE                         │
+│                     CLIENT DEVICE                               │
 │                              │                                   │
 │  ┌──────────┐               │                                   │
 │  │ UDP :8888 │──discover───►│                                   │
-│  │ (broadcast│               │                                   │
-│  │  dual:    │               │                                   │
+│  │ (dual:    │               │                                   │
 │  │  255.255  │               │                                   │
 │  │  + subnet)│               │                                   │
 │  └──────────┘               │                                   │
 │                              │                                   │
 │  ┌──────────────────────────┴──────────────────────────────┐   │
 │  │ TCP Client                                              │   │
-│  │  • Conecta al puerto TCP del servidor                    │   │
-│  │  • Envía: join, input (dir.x/dir.y), interact           │   │
-│  │  • Recibe: welcome, lobby, countdown, start, state,     │   │
+│  │  • Connects to server TCP port                           │   │
+│  │  • Sends: join, input (dir.x/dir.y), interact           │   │
+│  │  • Receives: welcome, lobby, countdown, start, state,   │   │
 │  │    game_over, error                                      │   │
-│  │  • VirtualJoystick → input cada cambio de dirección      │   │
+│  │  • VirtualJoystick → input on each direction change      │   │
 │  │  • InteractButton → interact onTap                      │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Formato de Mensajes (Protocolo v1.2.0)
+### Message Format (Protocol v1.2.0)
 
-Todo mensaje TCP es un objeto JSON en una sola línea, terminado con `\n`:
+Every TCP message is a single-line JSON object, terminated with `\n`:
 
 ```
 {"type":"join","v":1,"name":"Player1"}\n
@@ -224,84 +223,84 @@ Todo mensaje TCP es un objeto JSON en una sola línea, terminado con `\n`:
 {"type":"state","flag":{"owner":"p_123","x":600.0,"y":500.0},"players":[...]}\n
 ```
 
-**Características clave para interoperabilidad:**
+**Key features for interoperability:**
 
-| Aspecto            | Implementación                                                                                                                           |
-| :----------------- | :--------------------------------------------------------------------------------------------------------------------------------------- |
-| **Transporte**     | TCP para juego (dart:io `Socket`/`ServerSocket`), UDP para descubrimiento (dart:io `RawDatagramSocket`)                                  |
-| **Framing**        | Buffer acumulador + split por `\n`. Tolerancia `\r\n` (Windows). Límite 64 KB por mensaje.                                               |
-| **Codificación**   | UTF-8                                                                                                                                    |
-| **Coalescencia**   | Mensajes `state` son coalescibles: si un cliente va lento, el servidor descarta los pendientes y envía solo el más reciente              |
-| **Descubrimiento** | Broadcast dual UDP (255.255.255.255:8888 + broadcast de subred). Fallback manual: unicast a IP:8888 o conexión directa TCP IP:puerto.    |
-| **Autoridad**      | 100% servidor. El cliente solo envía intención (`dir`, `interact`). El servidor calcula posición, valida captura/robo, detecta victoria. |
-| **Determinismo**   | Los mensajes se procesan en orden de llegada TCP. Misma secuencia → mismo resultado.                                                     |
-| **Errores**        | 11 códigos de error normalizados (`INVALID_JSON`, `NAME_INVALID`, `LOBBY_FULL`, `GAME_STARTED`, etc.)                                    |
+| Aspect          | Implementation                                                                                                                      |
+| :-------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **Transport**   | TCP for gameplay (dart:io `Socket`/`ServerSocket`), UDP for discovery (dart:io `RawDatagramSocket`)                                 |
+| **Framing**     | Accumulator buffer + split by `\n`. `\r\n` tolerance (Windows). 64 KB limit per message.                                            |
+| **Encoding**    | UTF-8                                                                                                                               |
+| **Coalescence** | `state` messages are coalescible: if a client is slow, the server discards pending ones and sends only the most recent              |
+| **Discovery**   | Dual UDP broadcast (255.255.255.255:8888 + subnet broadcast). Manual fallback: unicast to IP:8888 or direct TCP IP:port connection. |
+| **Authority**   | 100% server. Client only sends intent (`dir`, `interact`). Server calculates position, validates capture/steal, detects victory.    |
+| **Determinism** | Messages are processed in TCP arrival order. Same sequence → same result.                                                           |
+| **Errors**      | 11 standardized error codes (`INVALID_JSON`, `NAME_INVALID`, `LOBBY_FULL`, `GAME_STARTED`, etc.)                                    |
 
-### Constantes de Protocolo
+### Protocol Constants
 
-| Constante          | Valor      | Significado                          |
-| :----------------- | :--------- | :----------------------------------- |
-| `map_size`         | 1000       | Mapa 1000×1000 unidades lógicas      |
-| `circle_radius`    | 300        | Radio del círculo central            |
-| `circle_center`    | (500, 500) | Centro del mapa                      |
-| `player_radius`    | 15         | Radio del cuerpo del jugador         |
-| `interact_radius`  | 40         | Distancia máxima para capturar/robar |
-| `speed`            | 200        | Unidades por segundo                 |
-| `tick_rate`        | 20         | Envíos de estado por segundo         |
-| `victory_distance` | 315        | Distancia a superar para ganar       |
-| `discovery_port`   | 8888       | Puerto UDP fijo                      |
-| `max_players`      | 100        | Máximo de jugadores                  |
-| `message_max_size` | 64 KB      | Tamaño máximo de mensaje             |
+| Constant           | Value      | Meaning                           |
+| :----------------- | :--------- | :-------------------------------- |
+| `map_size`         | 1000       | 1000×1000 logical unit map        |
+| `circle_radius`    | 300        | Central circle radius             |
+| `circle_center`    | (500, 500) | Map center                        |
+| `player_radius`    | 15         | Player body radius                |
+| `interact_radius`  | 40         | Maximum distance to capture/steal |
+| `speed`            | 200        | Units per second                  |
+| `tick_rate`        | 20         | State sends per second            |
+| `victory_distance` | 315        | Distance to exceed to win         |
+| `discovery_port`   | 8888       | Fixed UDP port                    |
+| `max_players`      | 100        | Maximum players                   |
+| `message_max_size` | 64 KB      | Maximum message size              |
 
 ---
 
-## 4. Inteligencia Artificial Utilizada
+## 4. Artificial Intelligence Used
 
-### Plataforma
+### Platform
 
-**Zed AI Agent** (DeepSeek V4 Pro) — sistema multi-agente integrado en el editor Zed. Cada agente recibe un prompt detallado con archivos de contexto, especificaciones técnicas, y criterios de verificación.
+**Zed AI Agent** (DeepSeek V4 Pro) — multi-agent system integrated into the Zed editor. Each agent receives a detailed prompt with context files, technical specifications, and verification criteria.
 
-### Agentes Desplegados por Milestone
+### Agents Deployed by Milestone
 
-|  #  | Agente                         | Milestone | Responsabilidad                                               | Archivos creados                                                         |
-| :-: | :----------------------------- | :-------- | :------------------------------------------------------------ | :----------------------------------------------------------------------- |
-|  1  | Translate docs                 | M0        | Traducción GUIA_PROYECTO.md → PROJECT_GUIDE.md                | 1                                                                        |
-|  2  | Agent A: TCP Framing           | M1        | Buffer + newline-delimited JSON framing                       | `tcp_framing.dart` + tests (13)                                          |
-|  3  | Agent B: Validation + Geometry | M2        | Validación de nombres/direcciones, geometría del juego        | `validation.dart`, `geometry.dart` + tests (44)                          |
-|  4  | Agent C: TCP Client            | M1        | Cliente TCP con Stream<ServerMessage>                         | `tcp_client.dart` + tests (7)                                            |
-|  5  | Agent D: TCP Server            | M1        | Servidor TCP multi-cliente con broadcast coalescible          | `tcp_server.dart` + tests (11)                                           |
-|  6  | Agent E: UDP Discovery         | M1        | Descubrimiento UDP dual-broadcast + unicast                   | `udp_discovery.dart` + tests (8)                                         |
-|  7  | Agent F: Server Engine         | M3        | Game state, state machine, game loop 20 Hz                    | `server_state.dart`, `state_machine.dart`, `game_loop.dart` + tests (40) |
-|  8  | Agent G: UI Foundation         | M4        | AppMode provider, AppShell, main.dart, ModeSelectScreen       | 4 archivos                                                               |
-|  9  | Agent H: Discovery Screen      | M4        | Pantalla de descubrimiento + extensión UDP listenWithSource() | `discovery_screen.dart`                                                  |
-| 10  | Agent I: Name Entry Screen     | M4        | Pantalla de ingreso de nombre con validación                  | `name_entry_screen.dart`                                                 |
-| 11  | Agent J: Lobby Screen          | M4        | Pantalla de lobby + connection_provider                       | `lobby_screen.dart`, `connection_provider.dart`                          |
-| 12  | Agent K: Game State Provider   | M5        | GameWorld + GameStateNotifier                                 | `game_state_provider.dart`                                               |
-| 13  | Agent L: Game Painter          | M5        | CustomPainter: mapa, círculo, jugadores, bandera              | `game_painter.dart`                                                      |
-| 14  | Agent M: Input Widgets         | M5        | VirtualJoystick + InteractButton                              | `virtual_joystick.dart`, `interact_button.dart`                          |
-| 15  | Agent N: Game Screen           | M5        | GameScreen: composición de painter + controles + overlays     | `game_screen.dart`                                                       |
-| 16  | Agent O: Server Provider       | M6        | Gestión del ciclo de vida del servidor                        | `server_provider.dart`                                                   |
-| 17  | Agent P: Lobby Integration     | M6        | Integración lobby con providers reales, transiciones de fase  | 5 archivos modificados                                                   |
-| 18  | Agent Q: Name Labels           | M7        | Nombres sobre avatares en el painter                          | 2 archivos modificados                                                   |
-| 19  | Agent R: Countdown Animation   | M7        | Animación de cuenta regresiva                                 | `game_screen.dart` modificado                                            |
-| 20  | Agent S: Error Toast           | M7        | Toast de errores del servidor                                 | `error_toast.dart`                                                       |
-| 21  | Agent T: Stress Test           | M7        | Prueba de estrés: 100 clientes concurrentes                   | `stress_test.dart`                                                       |
+|  #  | Agent                          | Milestone | Responsibility                                           | Files created                                                            |
+| :-: | :----------------------------- | :-------- | :------------------------------------------------------- | :----------------------------------------------------------------------- |
+|  1  | Translate docs                 | M0        | `GUIA_PROYECTO.md` → `PROJECT_GUIDE.md` translation      | 1                                                                        |
+|  2  | Agent A: TCP Framing           | M1        | Buffer + newline-delimited JSON framing                  | `tcp_framing.dart` + tests (13)                                          |
+|  3  | Agent B: Validation + Geometry | M2        | Name/address validation, game geometry                   | `validation.dart`, `geometry.dart` + tests (44)                          |
+|  4  | Agent C: TCP Client            | M1        | TCP client with `Stream<ServerMessage>`                  | `tcp_client.dart` + tests (7)                                            |
+|  5  | Agent D: TCP Server            | M1        | Multi-client TCP server with coalescible broadcast       | `tcp_server.dart` + tests (11)                                           |
+|  6  | Agent E: UDP Discovery         | M1        | Dual-broadcast UDP discovery + unicast                   | `udp_discovery.dart` + tests (8)                                         |
+|  7  | Agent F: Server Engine         | M3        | Game state, state machine, game loop 20 Hz               | `server_state.dart`, `state_machine.dart`, `game_loop.dart` + tests (40) |
+|  8  | Agent G: UI Foundation         | M4        | AppMode provider, AppShell, main.dart, ModeSelectScreen  | 4 files                                                                  |
+|  9  | Agent H: Discovery Screen      | M4        | Discovery screen + UDP `listenWithSource()` extension    | `discovery_screen.dart`                                                  |
+| 10  | Agent I: Name Entry Screen     | M4        | Name entry screen with validation                        | `name_entry_screen.dart`                                                 |
+| 11  | Agent J: Lobby Screen          | M4        | Lobby screen + connection_provider                       | `lobby_screen.dart`, `connection_provider.dart`                          |
+| 12  | Agent K: Game State Provider   | M5        | GameWorld + GameStateNotifier                            | `game_state_provider.dart`                                               |
+| 13  | Agent L: Game Painter          | M5        | CustomPainter: map, circle, players, flag                | `game_painter.dart`                                                      |
+| 14  | Agent M: Input Widgets         | M5        | VirtualJoystick + InteractButton                         | `virtual_joystick.dart`, `interact_button.dart`                          |
+| 15  | Agent N: Game Screen           | M5        | GameScreen: painter + controls + overlays composition    | `game_screen.dart`                                                       |
+| 16  | Agent O: Server Provider       | M6        | Server lifecycle management                              | `server_provider.dart`                                                   |
+| 17  | Agent P: Lobby Integration     | M6        | Lobby integration with real providers, phase transitions | 5 files modified                                                         |
+| 18  | Agent Q: Name Labels           | M7        | Name labels on avatars in the painter                    | 2 files modified                                                         |
+| 19  | Agent R: Countdown Animation   | M7        | Countdown animation                                      | `game_screen.dart` modified                                              |
+| 20  | Agent S: Error Toast           | M7        | Server error toast                                       | `error_toast.dart`                                                       |
+| 21  | Agent T: Stress Test           | M7        | Stress test: 100 concurrent clients                      | `stress_test.dart`                                                       |
 
-**Total:** 21 agentes especializados desplegados en 7 batches.
+**Total:** 21 specialized agents deployed in 7 batches.
 
-### Metodología de Prompting
+### Prompting Methodology
 
-Cada agente recibió un prompt estructurado con:
+Each agent received a structured prompt with:
 
-1. **Archivos de contexto obligatorios** — paths exactos que DEBE leer antes de implementar
-2. **Especificación de la interfaz** — firmas de clases/métodos, parámetros, tipos de retorno
-3. **Reglas de implementación** — restricciones (no modificar archivos existentes, no usar riverpod_generator, usar dart:io nativo)
-4. **Criterios de verificación** — comandos exactos a ejecutar: `dart format`, `flutter analyze`, `flutter test`
-5. **Manejo de errores** — "Fix any failures before reporting done"
+1. **Mandatory context files** — exact paths it MUST read before implementing
+2. **Interface specification** — class/method signatures, parameters, return types
+3. **Implementation rules** — constraints (do not modify existing files, do not use riverpod_generator, use native dart:io)
+4. **Verification criteria** — exact commands to run: `dart format`, `flutter analyze`, `flutter test`
+5. **Error handling** — "Fix any failures before reporting done"
 
-### Patrones de Prompting Recurrentes
+### Recurring Prompt Patterns
 
-**Prompt de agente de capa de red (ejemplo — Agent C: TCP Client):**
+**Network layer agent prompt (example — Agent C: TCP Client):**
 
 ```
 Implement the TCP client for the CTF mobile game project.
@@ -315,7 +314,7 @@ Fix any failures before reporting done.
 Do NOT modify any existing files.
 ```
 
-**Prompt de agente de UI (ejemplo — Agent N: Game Screen):**
+**UI agent prompt (example — Agent N: Game Screen):**
 
 ```
 Implement the game screen for the CTF mobile game client.
@@ -329,60 +328,60 @@ After writing, run: dart format, flutter analyze, flutter test
 Fix any compilation or analysis errors.
 ```
 
-### Verificación Automatizada
+### Automated Verification
 
-Cada agente ejecutó autónomamente al finalizar:
+Each agent autonomously ran upon completion:
 
 ```bash
-fvm dart format <archivos>    # Formateo consistente
-fvm flutter analyze           # Zero issues requerido
-fvm flutter test              # Zero regresiones
+fvm dart format <files>    # Consistent formatting
+fvm flutter analyze           # Zero issues required
+fvm flutter test              # Zero regressions
 ```
 
-El agente orquestador (conversación principal) verificó adicionalmente:
+The orchestrator agent (main conversation) additionally verified:
 
-- `fvm flutter test` completo después de cada batch
-- `fvm flutter analyze` global
-- Consistencia entre archivos creados por distintos agentes (wiring en app_shell, firmas de constructores, imports)
+- full `fvm flutter test` after each batch
+- global `fvm flutter analyze`
+- Consistency across files created by different agents (wiring in app_shell, constructor signatures, imports)
 
-### Bugs Detectados y Corregidos Durante la Implementación
+### Bugs Detected and Fixed During Implementation
 
-| Bug                                                     | Detectado por                       | Solución                                                                           |
-| :------------------------------------------------------ | :---------------------------------- | :--------------------------------------------------------------------------------- |
-| Discriminadores Freezed en camelCase vs SPEC snake_case | Review del orquestador post-Agent F | Helpers `canonicalizeDiscriminator()` / `restoreDiscriminator()`                   |
-| NameEntryScreen no aceptaba ip/port como parámetros     | Wiring post-Agent I/J               | Ajuste de firma en app_shell (usa AppMode state)                                   |
-| LobbyScreen placeholder no iniciaba el servidor real    | Agent P                             | `server_name_screen.dart` modificado para llamar `serverProvider.notifier.start()` |
-| `backToLobby()` no distinguía host vs joiner            | Agent P                             | Corrección en `app_mode_provider.dart` usando pattern matching                     |
-| Test UDP broadcast flaky en loopback                    | Review continua                     | Test marcado como conocido (broadcast no funciona confiablemente en loopback)      |
+| Bug                                                    | Detected by                      | Solution                                                                     |
+| :----------------------------------------------------- | :------------------------------- | :--------------------------------------------------------------------------- |
+| Freezed discriminators in camelCase vs SPEC snake_case | Orchestrator review post-Agent F | Helpers `canonicalizeDiscriminator()` / `restoreDiscriminator()`             |
+| NameEntryScreen did not accept ip/port as parameters   | Wiring post-Agent I/J            | Signature adjustment in app_shell (uses AppMode state)                       |
+| LobbyScreen placeholder did not start the real server  | Agent P                          | `server_name_screen.dart` modified to call `serverProvider.notifier.start()` |
+| `backToLobby()` did not distinguish host vs joiner     | Agent P                          | Fix in `app_mode_provider.dart` using pattern matching                       |
+| UDP broadcast test flaky on loopback                   | Continuous review                | Test marked as known (broadcast does not work reliably on loopback)          |
 
 ---
 
-## 5. Estructura Final del Proyecto
+## 5. Final Project Structure
 
 ```
 lib/
 ├── main.dart
 ├── core/
-│   ├── messages.dart              # 12 tipos de mensaje (Freezed sealed unions)
-│   ├── messages.freezed.dart      # Generado
-│   ├── messages.g.dart            # Generado
-│   ├── constants.dart             # 19 constantes del SPEC
-│   ├── validation.dart            # Validación de entrada
-│   └── geometry.dart              # Matemáticas del juego
+│   ├── messages.dart              # 12 message types (Freezed sealed unions)
+│   ├── messages.freezed.dart      # Generated
+│   ├── messages.g.dart            # Generated
+│   ├── constants.dart             # 19 SPEC constants
+│   ├── validation.dart            # Input validation
+│   └── geometry.dart              # Game math
 ├── network/
 │   ├── tcp_framing.dart           # Buffer + split \n
-│   ├── tcp_client.dart            # Cliente TCP
-│   ├── tcp_server.dart            # Servidor TCP multi-cliente
-│   └── udp_discovery.dart         # Descubrimiento UDP
+│   ├── tcp_client.dart            # TCP client
+│   ├── tcp_server.dart            # Multi-client TCP server
+│   └── udp_discovery.dart         # UDP discovery
 ├── server/
-│   ├── server_state.dart          # Estado del mundo
-│   ├── server_state_machine.dart  # Máquina de estados
+│   ├── server_state.dart          # World state
+│   ├── server_state_machine.dart  # State machine
 │   └── server_game_loop.dart      # Game loop 20 Hz
 ├── client/
-│   ├── app_shell.dart             # Router de pantallas
-│   ├── screens/                   # 6 pantallas
+│   ├── app_shell.dart             # Screen router
+│   ├── screens/                   # 6 screens
 │   ├── painters/                  # GamePainter
-│   ├── input/                     # Joystick + botón interact
+│   ├── input/                     # Joystick + interact button
 │   ├── widgets/                   # Error toast
 │   └── providers/                 # 4 Riverpod providers
 └── shared/
@@ -392,56 +391,56 @@ test/
 ├── core/          # 44 tests
 ├── network/       # 39 tests
 ├── server/        # 40 tests
-└── integration/   # 1 stress test (100 clientes)
+└── integration/   # 1 stress test (100 clients)
 ```
 
 ---
 
-## 6. Métricas Finales
+## 6. Final Metrics
 
-| Métrica                       | Valor                                                                    |
-| :---------------------------- | :----------------------------------------------------------------------- |
-| **Días de desarrollo**        | 2 (planificación 1 + implementación 1)                                   |
-| **Commits**                   | 7                                                                        |
-| **Plataformas**               | iOS, Android, macOS                                                      |
-| **Archivos fuente**           | 30                                                                       |
-| **Archivos de prueba**        | 9                                                                        |
-| **Tests totales**             | 124 (123 pasan, 1 flaky UDP)                                             |
-| **Líneas de código**          | ~5,000+                                                                  |
-| **Cobertura de tests**        | ≥90% en core/server, ≥70% en network                                     |
-| **Agentes de IA desplegados** | 21                                                                       |
-| **Batches de implementación** | 7                                                                        |
-| **Milestones completados**    | 9 (M0–M7)                                                                |
-| **Análisis estático**         | Zero issues                                                              |
-| **Protocolo**                 | CTF Standard v1.2.0 — implementación completa de los 12 tipos de mensaje |
+| Metric                     | Value                                                             |
+| :------------------------- | :---------------------------------------------------------------- |
+| **Development days**       | 2 (planning 1 + implementation 1)                                 |
+| **Commits**                | 7                                                                 |
+| **Platforms**              | iOS, Android, macOS                                               |
+| **Source files**           | 30                                                                |
+| **Test files**             | 9                                                                 |
+| **Total tests**            | 124 (123 pass, 1 flaky UDP)                                       |
+| **Lines of code**          | ~5,000+                                                           |
+| **Test coverage**          | ≥90% in core/server, ≥70% in network                              |
+| **AI agents deployed**     | 21                                                                |
+| **Implementation batches** | 7                                                                 |
+| **Milestones completed**   | 9 (M0–M7)                                                         |
+| **Static analysis**        | Zero issues                                                       |
+| **Protocol**               | CTF Standard v1.2.0 — full implementation of all 12 message types |
 
 ---
 
-## 7. Correcciones Post-MVP (v0.2.0)
+## 7. Post-MVP Fixes (v0.2.0)
 
-### Bugs corregidos en iteraciones posteriores
+### Bugs Fixed in Post-MVP Iterations
 
-| Bug                                                   | Causa                                                                   | Solución                                                                                         |
-| :---------------------------------------------------- | :---------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
-| Cuenta regresiva congelada en "5" (host)              | `_periodicSync` enviaba `countdown(5)` hardcodeado cada 100ms           | `ServerGameState` ahora almacena `countdownSeconds` real decrementado por la máquina de estados  |
-| Juego nunca iniciaba tras countdown (host)            | El host no recibía `Start` vía TCP (no es cliente)                      | `_tickSync` envía `Start` al `gameStateProvider` en el primer tick si la fase sigue en countdown |
-| Error "No Overlay widget found"                       | `WidgetsApp` sin `home` ni `pageRouteBuilder` no crea Navigator/Overlay | Añadido `home` + `pageRouteBuilder` a `WidgetsApp`                                               |
-| Error "No MaterialLocalizations found"                | `showDialog` (Material) requiere MaterialLocalizations                  | Reemplazado por `showFDialog` (Forui) en discovery screen                                        |
-| Error "Operation not permitted" en socket (macOS)     | Falta entitlement `com.apple.security.network.client`                   | Añadido a DebugProfile.entitlements y Release.entitlements                                       |
-| Error "Bad state: Using ref when widget is unmounted" | `ref.read()` en `dispose()`                                             | Notifiers guardados como `late final` en construcción del state                                  |
-| IP:puerto desaparecía al unirse un jugador            | `FutureBuilder` creaba nuevo future en cada rebuild                     | Future memoizado con `late final`                                                                |
-| IP:puerto tapado por botón "Start Game"               | Posicionado al final del Column, debajo del Stack overlay               | Movido bajo el título, arriba de la lista                                                        |
-| Host se unía como jugador a su propio servidor        | `_connectAsHost` enviaba `join`                                         | Conexión TCP del host eliminada; espectador solo vía `_periodicSync`                             |
+| Bug                                                   | Cause                                                                               | Solution                                                                                           |
+| :---------------------------------------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| Countdown frozen at "5" (host)                        | `_periodicSync` sent hardcoded `countdown(5)` every 100ms                           | `ServerGameState` now stores real `countdownSeconds` decremented by the state machine              |
+| Game never started after countdown (host)             | Host did not receive `Start` via TCP (not a client)                                 | `_tickSync` sends `Start` to `gameStateProvider` on the first tick if the phase is still countdown |
+| Error "No Overlay widget found"                       | `WidgetsApp` without `home` or `pageRouteBuilder` does not create Navigator/Overlay | Added `home` + `pageRouteBuilder` to `WidgetsApp`                                                  |
+| Error "No MaterialLocalizations found"                | `showDialog` (Material) requires MaterialLocalizations                              | Replaced with `showFDialog` (Forui) in discovery screen                                            |
+| Error "Operation not permitted" on socket (macOS)     | Missing entitlement `com.apple.security.network.client`                             | Added to DebugProfile.entitlements and Release.entitlements                                        |
+| Error "Bad state: Using ref when widget is unmounted" | `ref.read()` in `dispose()`                                                         | Notifiers stored as `late final` during state construction                                         |
+| IP:port disappeared when a player joined              | `FutureBuilder` created a new future on each rebuild                                | Future memoized with `late final`                                                                  |
+| IP:port covered by "Start Game" button                | Positioned at the end of the Column, below the Stack overlay                        | Moved under the title, above the list                                                              |
+| Host joined as a player to its own server             | `_connectAsHost` sent `join`                                                        | Host TCP connection removed; spectator only via `_periodicSync`                                    |
 
-### Mejoras de calidad
+### Quality Improvements
 
-| Mejora                        | Detalle                                                                                                                    |
-| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
-| Tema pixel retro              | Tema oscuro personalizado con fuente Departure Mono, colores arcade (verde neón, fondo espacio profundo), bordes pixel-art |
-| Soporte de teclado            | WASD/flechas para movimiento, E/Espacio para interactuar (aditivo al joystick táctil)                                      |
-| Logging con stack traces      | Todos los manejadores de error ahora capturan y registran `StackTrace`                                                     |
-| Tema Forui correcto           | `FToaster` + `FTooltipGroup` en raíz de la app según docs oficiales de Forui                                               |
-| Plataforma macOS              | Soporte completo con deployment target Sonoma 14.0, entitlements de red                                                    |
-| Nombres sobre avatares        | Etiquetas con fondo semi-transparente para legibilidad                                                                     |
-| Animación de cuenta regresiva | Escala + fade + rampa de color con sombra glow                                                                             |
-| Toast de errores              | Widget overlay con fade-in y auto-dismiss en 3s                                                                            |
+| Improvement               | Detail                                                                                                           |
+| :------------------------ | :--------------------------------------------------------------------------------------------------------------- |
+| Retro pixel theme         | Custom dark theme with Departure Mono font, arcade colors (neon green, deep space background), pixel-art borders |
+| Keyboard support          | WASD/arrows for movement, E/Space to interact (additive to touch joystick)                                       |
+| Logging with stack traces | All error handlers now capture and log `StackTrace`                                                              |
+| Correct Forui theme       | `FToaster` + `FTooltipGroup` at app root per official Forui docs                                                 |
+| macOS platform            | Full support with Sonoma 14.0 deployment target, network entitlements                                            |
+| Name labels on avatars    | Labels with semi-transparent background for readability                                                          |
+| Countdown animation       | Scale + fade + color ramp with glow shadow                                                                       |
+| Error toast               | Overlay widget with fade-in and auto-dismiss in 3s                                                               |
